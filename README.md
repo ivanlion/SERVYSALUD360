@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SERVYSALUD 360 - Sistema de Trabajo Modificado
 
-## Getting Started
+Sistema de gestión de trabajo modificado para Servysalud, desarrollado con Next.js, TypeScript, Supabase y Google Gemini AI.
 
-First, run the development server:
+## 🚀 Características
 
+- **Formulario de Trabajo Modificado**: Sistema completo de registro con múltiples pasos
+- **Dashboard de Gestión**: Visualización y búsqueda de casos registrados
+- **Integración con Supabase**: Almacenamiento de datos en tiempo real
+- **Asistente IA con Gemini**: Chatbot especializado en salud ocupacional
+- **Análisis de PDFs**: Extracción automática de datos de exámenes médicos
+
+## 📋 Requisitos Previos
+
+- Node.js 18+ 
+- npm o yarn
+- Cuenta de Supabase
+- API Key de Google Gemini
+
+## 🔧 Instalación
+
+1. Clona el repositorio:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <url-del-repositorio>
+cd servysalud-pro
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Instala las dependencias:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Configura las variables de entorno. Crea un archivo `.env.local` en la raíz del proyecto:
+```env
+NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key_de_supabase
+NEXT_PUBLIC_GEMINI_API_KEY=tu_api_key_de_gemini
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Ejecuta el servidor de desarrollo:
+```bash
+npm run dev
+```
 
-## Learn More
+5. Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
 
-To learn more about Next.js, take a look at the following resources:
+## 🗄️ Base de Datos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+El proyecto utiliza Supabase. Asegúrate de tener una tabla `registros_trabajadores` con las siguientes columnas:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `fecha_registro` (date)
+- `apellidos_nombre` (text)
+- `dni_ce_pas` (text)
+- `telefono_trabajador` (text)
+- `sexo` (text)
+- `jornada_laboral` (text)
+- `puesto_trabajo` (text)
+- `empresa` (text)
+- `gerencia` (text)
+- `supervisor_responsable` (text)
+- `telf_contacto_supervisor` (text)
 
-## Deploy on Vercel
+## 🛠️ Tecnologías Utilizadas
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Next.js 16**: Framework de React
+- **TypeScript**: Tipado estático
+- **Tailwind CSS**: Estilos
+- **Supabase**: Base de datos y backend
+- **Google Gemini AI**: Asistente inteligente
+- **Lucide React**: Iconos
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📝 Estructura del Proyecto
+
+```
+servysalud-pro/
+├── app/                    # Páginas y rutas de Next.js
+│   ├── page.tsx           # Página principal
+│   └── layout.tsx         # Layout principal
+├── components/            # Componentes React
+│   ├── Dashboard.tsx      # Dashboard principal
+│   ├── CaseForm.tsx       # Formulario de casos
+│   ├── Notification.tsx   # Componente de notificaciones
+│   └── sections/          # Secciones del formulario
+├── lib/                   # Utilidades
+│   └── supabase.ts       # Cliente de Supabase
+├── types.ts              # Definiciones de tipos TypeScript
+└── public/               # Archivos estáticos
+```
+
+## 🚀 Despliegue
+
+El proyecto está listo para desplegarse en Vercel:
+
+1. Conecta tu repositorio de GitHub a Vercel
+2. Configura las variables de entorno en Vercel
+3. Despliega automáticamente
+
+## 📄 Licencia
+
+Este proyecto es privado y propiedad de Servysalud.
+
+## 👥 Autor
+
+Desarrollado para Servysalud 360
