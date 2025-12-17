@@ -74,16 +74,16 @@ export default function GeneralInfo({ data, onChange, readOnly = false }: Genera
   };
 
   return (
-    <div className={`space-y-8 animate-in fade-in duration-500 ${readOnly ? 'opacity-80 pointer-events-none' : ''}`}>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className={`space-y-4 sm:space-y-6 lg:space-y-8 animate-in fade-in duration-500 ${readOnly ? 'opacity-80 pointer-events-none' : ''}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
         
         {/* Basic Info */}
-        <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-          <h3 className="text-lg font-bold text-blue-900 border-b border-blue-100 pb-3 mb-4 drop-shadow-sm">
+        <div className="bg-white p-4 sm:p-5 rounded-xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <h3 className="text-base sm:text-lg font-bold text-blue-900 border-b border-blue-100 pb-2 sm:pb-3 mb-3 sm:mb-4 drop-shadow-sm">
             Información del Trabajador
           </h3>
           
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Fecha de Registro</label>
               <input 
@@ -187,12 +187,12 @@ export default function GeneralInfo({ data, onChange, readOnly = false }: Genera
         </div>
 
         {/* Company Info */}
-        <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-          <h3 className="text-lg font-bold text-blue-900 border-b border-blue-100 pb-3 mb-4 drop-shadow-sm">
+        <div className="bg-white p-4 sm:p-5 rounded-xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <h3 className="text-base sm:text-lg font-bold text-blue-900 border-b border-blue-100 pb-2 sm:pb-3 mb-3 sm:mb-4 drop-shadow-sm">
             Información Corporativa
           </h3>
           
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Empresa</label>
               <input 
@@ -249,9 +249,9 @@ export default function GeneralInfo({ data, onChange, readOnly = false }: Genera
       </div>
 
       {/* Event Type */}
-      <div className="pt-4 bg-white p-5 rounded-xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-        <h3 className="text-lg font-bold text-blue-900 border-b border-blue-100 pb-4 mb-4 drop-shadow-sm">Tipo de Evento</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="pt-4 bg-white p-4 sm:p-5 rounded-xl border border-blue-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+        <h3 className="text-base sm:text-lg font-bold text-blue-900 border-b border-blue-100 pb-3 sm:pb-4 mb-3 sm:mb-4 drop-shadow-sm">Tipo de Evento</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           {Object.values(EventType).map((type) => (
             <label key={type} className={`
               relative flex cursor-pointer rounded-xl border p-4 shadow-sm focus:outline-none transition-all duration-200

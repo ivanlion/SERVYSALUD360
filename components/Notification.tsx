@@ -20,10 +20,10 @@ export default function Notification({ message, type, onClose, duration = 5000 }
   }, [duration, onClose]);
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right">
+    <div className="fixed top-4 right-2 sm:right-4 left-2 sm:left-auto z-50 animate-in slide-in-from-right max-w-[calc(100vw-1rem)] sm:max-w-md">
       <div
         className={`
-          flex items-center gap-3 px-6 py-4 rounded-lg shadow-lg border-2 min-w-[300px] max-w-md
+          flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 rounded-lg shadow-lg border-2 w-full sm:min-w-[300px]
           ${type === 'success' 
             ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
             : 'bg-red-50 border-red-200 text-red-800'

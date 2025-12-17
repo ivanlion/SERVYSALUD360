@@ -27,16 +27,16 @@ export default function JobAnalysis({ data, onChange, readOnly = false }: JobAna
   };
 
   return (
-    <div className={`space-y-8 animate-in fade-in slide-in-from-right-8 duration-500 ${readOnly ? 'opacity-80 pointer-events-none' : ''}`}>
+    <div className={`space-y-4 sm:space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-right-8 duration-500 ${readOnly ? 'opacity-80 pointer-events-none' : ''}`}>
       
       {/* Section B */}
-      <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-6 hover:shadow-md transition-shadow duration-300">
-        <h3 className="text-xl font-bold text-blue-900 border-b border-blue-100 pb-3 mb-6 drop-shadow-sm">
+      <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-4 sm:p-6 hover:shadow-md transition-shadow duration-300">
+        <h3 className="text-lg sm:text-xl font-bold text-blue-900 border-b border-blue-100 pb-2 sm:pb-3 mb-4 sm:mb-6 drop-shadow-sm">
           Sección B: Evaluación del Puesto de Trabajo e IPERC
-          <span className="block text-sm font-medium text-blue-600 mt-1">A completar por Médico Ocupacional y Supervisor</span>
+          <span className="block text-xs sm:text-sm font-medium text-blue-600 mt-1">A completar por Médico Ocupacional y Supervisor</span>
         </h3>
         
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
            <div>
              <label className="block text-sm font-semibold text-slate-700 mb-2">Descripción de las tareas a realizar</label>
              <textarea
@@ -77,10 +77,10 @@ export default function JobAnalysis({ data, onChange, readOnly = false }: JobAna
       </div>
 
       {/* Section C */}
-      <div className="bg-gradient-to-br from-blue-50/30 to-white p-6 rounded-xl border border-blue-200 shadow-sm hover:shadow-md transition-all">
-        <h3 className="text-xl font-bold text-blue-900 border-b border-blue-100 pb-3 mb-6 drop-shadow-sm">
+      <div className="bg-gradient-to-br from-blue-50/30 to-white p-4 sm:p-6 rounded-xl border border-blue-200 shadow-sm hover:shadow-md transition-all">
+        <h3 className="text-lg sm:text-xl font-bold text-blue-900 border-b border-blue-100 pb-2 sm:pb-3 mb-4 sm:mb-6 drop-shadow-sm">
           Sección C: Compromiso de Trabajo Modificado
-          <span className="block text-sm font-medium text-blue-600 mt-1">Supervisor del trabajador</span>
+          <span className="block text-xs sm:text-sm font-medium text-blue-600 mt-1">Supervisor del trabajador</span>
         </h3>
 
         <div>

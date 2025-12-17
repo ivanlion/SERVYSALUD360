@@ -202,25 +202,25 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-4 sm:space-y-6 lg:space-y-8 animate-in fade-in duration-500">
       
       {/* Title Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Gestión de Trabajo Modificado</h2>
-        <p className="text-slate-500 text-sm mt-1">Monitoreo y seguimiento de restricciones laborales.</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Gestión de Trabajo Modificado</h2>
+        <p className="text-slate-500 text-xs sm:text-sm mt-1">Monitoreo y seguimiento de restricciones laborales.</p>
       </div>
 
       {/* Search & Filter Section */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-        <label className="block text-sm font-medium text-blue-900 mb-2">Búsqueda</label>
+      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-blue-200">
+        <label className="block text-xs sm:text-sm font-medium text-blue-900 mb-2">Búsqueda</label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-blue-300" />
+            <Search className="h-4 w-4 sm:h-5 sm:w-5 text-blue-300" />
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-4 py-3 border border-blue-200 rounded-lg leading-5 bg-blue-50/20 text-gray-900 placeholder-blue-300 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            placeholder="Buscar por Trabajador (Nombre/DNI) o Empresa..."
+            className="block w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base border border-blue-200 rounded-lg leading-5 bg-blue-50/20 text-gray-900 placeholder-blue-300 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            placeholder="Buscar por Trabajador, DNI o Empresa..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -233,68 +233,70 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
       </div>
 
       {/* Dynamic KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-sm font-medium text-slate-500">Total Casos</p>
-            <p className="text-3xl font-bold text-slate-900 mt-1">{totalCases}</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs sm:text-sm font-medium text-slate-500 truncate">Total Casos</p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">{totalCases}</p>
           </div>
-          <div className="bg-indigo-50 p-3 rounded-full text-indigo-600">
-            <Users size={24} />
+          <div className="bg-indigo-50 p-2 sm:p-3 rounded-full text-indigo-600 flex-shrink-0 ml-2">
+            <Users size={20} className="sm:w-6 sm:h-6" />
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-sm font-medium text-slate-500">Casos Activos</p>
-            <p className="text-3xl font-bold text-blue-600 mt-1">{activeCases}</p>
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs sm:text-sm font-medium text-slate-500 truncate">Casos Activos</p>
+            <p className="text-2xl sm:text-3xl font-bold text-blue-600 mt-1">{activeCases}</p>
           </div>
-           <div className="bg-blue-50 p-3 rounded-full text-blue-600">
-            <Activity size={24} />
+           <div className="bg-blue-50 p-2 sm:p-3 rounded-full text-blue-600 flex-shrink-0 ml-2">
+            <Activity size={20} className="sm:w-6 sm:h-6" />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-sm font-medium text-slate-500">Casos Cerrados</p>
-            <p className="text-3xl font-bold text-emerald-600 mt-1">{closedCases}</p>
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs sm:text-sm font-medium text-slate-500 truncate">Casos Cerrados</p>
+            <p className="text-2xl sm:text-3xl font-bold text-emerald-600 mt-1">{closedCases}</p>
           </div>
-           <div className="bg-emerald-50 p-3 rounded-full text-emerald-600">
-            <Users size={24} />
+           <div className="bg-emerald-50 p-2 sm:p-3 rounded-full text-emerald-600 flex-shrink-0 ml-2">
+            <Users size={20} className="sm:w-6 sm:h-6" />
           </div>
         </div>
 
         {/* New KPI Card for Total Accumulated Days */}
-        <div className="bg-gradient-to-br from-orange-50 to-white p-6 rounded-xl shadow-sm border border-orange-200 flex items-center justify-between hover:shadow-md transition-shadow">
-          <div>
-            <p className="text-sm font-bold text-orange-800/70 uppercase tracking-wide">Días Acumulados</p>
-            <p className="text-4xl font-black text-orange-600 mt-1">{globalAccumulatedDays}</p>
-            <p className="text-[10px] text-orange-400 font-medium">Suma de todos los casos visibles</p>
+        <div className="bg-gradient-to-br from-orange-50 to-white p-4 sm:p-6 rounded-xl shadow-sm border border-orange-200 flex items-center justify-between hover:shadow-md transition-shadow col-span-2 lg:col-span-1">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs sm:text-sm font-bold text-orange-800/70 uppercase tracking-wide truncate">Días Acumulados</p>
+            <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-orange-600 mt-1">{globalAccumulatedDays}</p>
+            <p className="text-[9px] sm:text-[10px] text-orange-400 font-medium hidden sm:block">Suma de todos los casos visibles</p>
           </div>
-           <div className="bg-orange-100 p-3 rounded-full text-orange-600">
-            <Clock size={24} />
+           <div className="bg-orange-100 p-2 sm:p-3 rounded-full text-orange-600 flex-shrink-0 ml-2">
+            <Clock size={20} className="sm:w-6 sm:h-6" />
           </div>
         </div>
       </div>
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-blue-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-blue-100">
-          <h3 className="text-lg font-semibold text-blue-900">Listado de Pacientes</h3>
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-blue-100">
+          <h3 className="text-base sm:text-lg font-semibold text-blue-900">Listado de Pacientes</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-blue-50 text-blue-800 text-sm">
-                <th className="px-6 py-3 font-medium">Trabajador</th>
-                <th className="px-6 py-3 font-medium">Diagnóstico / Evento</th>
-                <th className="px-6 py-3 font-medium whitespace-nowrap">Inicio TM</th>
-                <th className="px-6 py-3 font-medium whitespace-nowrap text-center">Días Acumulados</th>
-                <th className="px-6 py-3 font-medium whitespace-nowrap">Término Real</th>
-                <th className="px-6 py-3 font-medium">Estado</th>
-                <th className="px-6 py-3 font-medium text-right">Acciones</th>
-              </tr>
-            </thead>
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <div className="inline-block min-w-full align-middle">
+            <div className="overflow-hidden">
+              <table className="min-w-full divide-y divide-blue-50">
+                <thead className="bg-blue-50">
+                  <tr>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider">Trabajador</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider hidden md:table-cell">Diagnóstico / Evento</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">Inicio TM</th>
+                    <th className="px-3 sm:px-6 py-3 text-center text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider whitespace-nowrap">Días</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider whitespace-nowrap hidden xl:table-cell">Término</th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider hidden sm:table-cell">Estado</th>
+                    <th className="px-3 sm:px-6 py-3 text-right text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider">Acción</th>
+                  </tr>
+                </thead>
             <tbody className="divide-y divide-blue-50">
               {filteredCases.map((c) => {
                 const { initial, added, total } = getCaseDaysInfo(c);
@@ -307,15 +309,24 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
 
                 return (
                 <tr key={c.id} className="hover:bg-blue-50/50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    <div className="font-bold text-slate-900">{c.trabajadorNombre}</div>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-slate-600">
+                    <div className="font-bold text-slate-900 text-xs sm:text-sm truncate">{c.trabajadorNombre}</div>
                     <div className="text-xs text-slate-500">DNI: {c.dni}</div>
                     <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
                         <Building2 size={10} />
-                        {c.empresa || 'Empresa no reg.'}
+                        <span className="truncate">{c.empresa || 'Empresa no reg.'}</span>
+                    </div>
+                    {/* Mostrar diagnóstico en móvil */}
+                    <div className="md:hidden mt-2 pt-2 border-t border-blue-100">
+                      <div className="font-medium text-slate-900 text-xs truncate" title={primaryDiagnosis}>
+                        {primaryDiagnosis}
+                      </div>
+                      <div className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                        {c.tipoEvento}
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600 max-w-xs">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-slate-600 max-w-xs hidden md:table-cell">
                     <div className="font-medium text-slate-900 truncate" title={primaryDiagnosis}>
                       {primaryDiagnosis} {primaryCie10 && <span className="text-slate-500 text-xs">({primaryCie10})</span>}
                     </div>
@@ -323,7 +334,7 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
                       {c.tipoEvento}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-slate-600 whitespace-nowrap hidden lg:table-cell">
                      {c.fecha ? (
                         <div className="flex items-center gap-2">
                             <Calendar size={14} className="text-blue-400" />
@@ -335,47 +346,47 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
                   </td>
                   
                   {/* Modified Days Column */}
-                  <td className="px-6 py-4 text-center align-middle">
-                     <div className="inline-flex flex-col items-center justify-center bg-slate-50 border border-slate-200 rounded-lg px-4 py-1.5 min-w-[100px]">
-                        <span className="text-xl font-bold text-slate-800 leading-none">
-                            {total} <span className="text-[10px] font-normal text-slate-400 uppercase">Días</span>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-center align-middle">
+                     <div className="inline-flex flex-col items-center justify-center bg-slate-50 border border-slate-200 rounded-lg px-2 sm:px-4 py-1 sm:py-1.5 min-w-[70px] sm:min-w-[100px]">
+                        <span className="text-lg sm:text-xl font-bold text-slate-800 leading-none">
+                            {total} <span className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase">Días</span>
                         </span>
-                        <div className="w-full border-t border-slate-200 my-1"></div>
-                        <span className="text-[10px] font-medium text-slate-500 leading-tight">
+                        <div className="w-full border-t border-slate-200 my-0.5 sm:my-1"></div>
+                        <span className="text-[9px] sm:text-[10px] font-medium text-slate-500 leading-tight">
                             Inicial: <span className="text-slate-700">{initial}</span>
                             {added > 0 && (
                                 <span className="text-orange-600 ml-1">
-                                    (+{added} agg.)
+                                    (+{added})
                                 </span>
                             )}
                         </span>
                      </div>
                   </td>
 
-                  <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-slate-600 whitespace-nowrap hidden xl:table-cell">
                      {endDateFormatted !== '-' ? (
                          <div className="flex flex-col">
-                            <span className="text-slate-900 font-medium">{endDateFormatted}</span>
+                            <span className="text-slate-900 font-medium text-xs sm:text-sm">{endDateFormatted}</span>
                             {added > 0 && <span className="text-[10px] text-orange-500 italic">Extendida</span>}
                          </div>
                      ) : (
                          <span className="text-slate-300">-</span>
                      )}
                   </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm hidden sm:table-cell">
+                    <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       c.status === 'ACTIVO' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'
                     }`}>
                       {c.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-right">
                     <button 
                       onClick={() => onEdit(c)}
-                      className="text-slate-400 hover:text-blue-600 transition-colors"
+                      className="text-slate-400 hover:text-blue-600 transition-colors p-1"
                       title="Editar caso"
                     >
-                      <Edit2 size={18} />
+                      <Edit2 size={18} className="sm:w-5 sm:h-5" />
                     </button>
                   </td>
                 </tr>
@@ -399,7 +410,9 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
                 </tr>
               )}
             </tbody>
-          </table>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>

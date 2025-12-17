@@ -1,4 +1,3 @@
-'use client';
 
 import React, { useEffect } from 'react';
 import { CaseData, Reevaluation as IReevaluation, createNewReevaluation } from '../../types';

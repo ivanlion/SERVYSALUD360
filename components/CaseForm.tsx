@@ -383,7 +383,7 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-0">
       {/* Notificación */}
       {notification && (
         <Notification
@@ -393,19 +393,31 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
         />
       )}
       {/* Header */}
-      <div className="bg-white rounded-t-xl shadow-lg border-b border-blue-100 p-6 flex justify-between items-center relative overflow-hidden">
+      <div className="bg-white rounded-t-xl shadow-lg border-b border-blue-100 p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-blue-400 to-slate-400"></div>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 drop-shadow-sm flex items-center gap-2">
-            {initialData ? <Edit3 size={24} className="text-blue-600" /> : <Save size={24} className="text-blue-600" />}
-            {initialData ? `Editando Caso: ${initialData.id}` : 'Nuevo Registro de Trabajo Modificado'}
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 drop-shadow-sm flex items-center gap-2">
+            {initialData ? <Edit3 size={20} className="sm:w-6 sm:h-6 text-blue-600 flex-shrink-0" /> : <Save size={20} className="sm:w-6 sm:h-6 text-blue-600 flex-shrink-0" />}
+            <span className="truncate">
+              {initialData ? (
+                <>
+                  <span className="hidden sm:inline">Editando Caso: </span>
+                  {initialData.id}
+                </>
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Nuevo Registro de </span>
+                  Trabajo Modificado
+                </>
+              )}
+            </span>
           </h2>
-          <p className="text-sm text-slate-500 mt-1">Complete todos los campos obligatorios para finalizar.</p>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">Complete todos los campos obligatorios para finalizar.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
           <button 
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:shadow-md transition-all"
+            className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:shadow-md transition-all"
           >
             Cancelar
           </button>
@@ -413,7 +425,7 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
             onClick={validateAndSave}
             disabled={isSaving}
             className={`
-              px-4 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5
+              flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white rounded-lg flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5
               ${isSaving 
                 ? 'bg-blue-400 cursor-not-allowed' 
                 : 'bg-blue-600 hover:bg-blue-700'
@@ -422,13 +434,15 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
           >
             {isSaving ? (
               <>
-                <Loader2 size={16} className="animate-spin" />
-                Guardando...
+                <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" />
+                <span className="hidden sm:inline">Guardando...</span>
+                <span className="sm:hidden">Guardando</span>
               </>
             ) : (
               <>
-                <Save size={16} />
-                Guardar Todo
+                <Save size={14} className="sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Guardar Todo</span>
+                <span className="sm:hidden">Guardar</span>
               </>
             )}
           </button>
@@ -436,8 +450,8 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
       </div>
 
       {/* Stepper */}
-      <div className="bg-white border-b border-blue-100 px-6 py-6 shadow-sm overflow-x-auto">
-        <div className="flex flex-col sm:flex-row gap-4 justify-between min-w-max sm:min-w-0">
+      <div className="bg-white border-b border-blue-100 px-3 sm:px-6 py-4 sm:py-6 shadow-sm overflow-x-auto">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-between min-w-max sm:min-w-0">
           {STEPS.map((step) => {
             const status = stepStatuses[step.id] || 'empty';
             const isActive = currentStep === step.id;
@@ -447,26 +461,26 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
               <div 
                 key={step.id}
                 className={`
-                  flex-1 flex items-center gap-3 p-3 rounded-xl border cursor-pointer select-none relative min-w-[180px]
+                  flex-1 flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg sm:rounded-xl border cursor-pointer select-none relative min-w-[140px] sm:min-w-[180px]
                   ${getStepColorClass(status, isActive)}
                 `}
                 onClick={() => setCurrentStep(step.id)}
               >
                 {isLocked && (
-                  <div className="absolute top-2 right-2 text-slate-400">
-                    <Lock size={12} />
+                  <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 text-slate-400">
+                    <Lock size={10} className="sm:w-3 sm:h-3" />
                   </div>
                 )}
                 <div className={`
-                  w-8 h-8 rounded-full flex items-center justify-center bg-white shadow-sm flex-shrink-0
+                  w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center bg-white shadow-sm flex-shrink-0
                 `}>
                   {getStepIcon(status)}
                 </div>
-                <div className="flex flex-col overflow-hidden">
-                  <span className="text-xs font-bold uppercase tracking-wider opacity-70">
+                <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider opacity-70">
                     {step.label}
                   </span>
-                  <span className="text-sm font-bold leading-tight truncate" title={step.title}>
+                  <span className="text-xs sm:text-sm font-bold leading-tight truncate" title={step.title}>
                     {step.title}
                   </span>
                 </div>
@@ -477,42 +491,42 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
       </div>
 
       {/* Form Content */}
-      <div className="bg-white shadow-xl min-h-[500px] p-8 transition-all relative">
+      <div className="bg-white shadow-xl min-h-[400px] sm:min-h-[500px] p-4 sm:p-6 lg:p-8 transition-all relative">
          {isCurrentLocked && (
-            <div className="absolute top-4 right-4 z-10 bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-500 flex items-center gap-1 border border-slate-200">
-              <Lock size={12} /> Sección Bloqueada
+            <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 bg-slate-100 px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold text-slate-500 flex items-center gap-1 border border-slate-200">
+              <Lock size={10} className="sm:w-3 sm:h-3" /> <span className="hidden sm:inline">Sección Bloqueada</span><span className="sm:hidden">Bloqueada</span>
             </div>
          )}
         {renderStepContent()}
       </div>
 
       {/* Footer Navigation & Actions */}
-      <div className="bg-slate-50 rounded-b-xl border-t border-slate-200 p-4 flex justify-between shadow-inner items-center">
+      <div className="bg-slate-50 rounded-b-xl border-t border-slate-200 p-3 sm:p-4 flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 shadow-inner items-stretch sm:items-center">
         <button 
           onClick={prevStep}
           disabled={currentStep === 1}
-          className="px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white hover:shadow-md rounded-lg flex items-center gap-2 transition-all"
+          className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white hover:shadow-md rounded-lg flex items-center justify-center gap-2 transition-all"
         >
-          <ChevronLeft size={16} /> Anterior
+          <ChevronLeft size={14} className="sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Anterior</span>
         </button>
 
         {/* Lock/Unlock Section */}
-        <div className="flex gap-4">
+        <div className="flex gap-2 sm:gap-4 order-3 sm:order-2">
           {isCurrentLocked ? (
             <button
               onClick={handleSectionLock}
-              className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center gap-2 transition-all"
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2 transition-all"
               title="Habilitar edición"
             >
-              <Edit3 size={16} /> Editar Sección
+              <Edit3 size={14} className="sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Editar Sección</span><span className="sm:hidden">Editar</span>
             </button>
           ) : (
              <button
               onClick={handleSectionLock}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-2 transition-all shadow-sm"
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center justify-center gap-2 transition-all shadow-sm"
               title="Guardar y bloquear esta sección"
             >
-              <Lock size={16} /> Guardar esta sección
+              <Lock size={14} className="sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Guardar esta sección</span><span className="sm:hidden">Guardar</span>
             </button>
           )}
         </div>
@@ -521,7 +535,7 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
           onClick={currentStep === STEPS.length ? validateAndSave : nextStep}
           disabled={isSaving && currentStep === STEPS.length}
           className={`
-            px-4 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2 transition-all hover:-translate-y-0.5
+            order-2 sm:order-3 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white rounded-lg flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5
             ${isSaving && currentStep === STEPS.length
               ? 'bg-blue-400 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 hover:shadow-md'
@@ -531,8 +545,9 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
           {currentStep === STEPS.length ? (
             isSaving ? (
               <>
-                <Loader2 size={16} className="animate-spin" />
-                Guardando...
+                <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin" />
+                <span className="hidden sm:inline">Guardando...</span>
+                <span className="sm:hidden">Guardando</span>
               </>
             ) : (
               'Finalizar'
@@ -540,7 +555,7 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
           ) : (
             <>
               Siguiente
-              <ChevronRight size={16} />
+              <ChevronRight size={14} className="sm:w-4 sm:h-4" />
             </>
           )}
         </button>

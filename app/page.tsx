@@ -423,40 +423,47 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Navbar */}
       <nav className="bg-white border-b border-blue-100 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-20 items-center">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer hover:scale-105 transition-transform" onClick={() => setCurrentView('DASHBOARD')}>
-                <div className="bg-blue-600 text-white p-1.5 rounded-lg">
-                  <Activity className="h-6 w-6" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
+          <div className="flex justify-between h-16 sm:h-20 items-center">
+            <div className="flex flex-1 min-w-0">
+              <div className="flex-shrink-0 flex items-center gap-1.5 sm:gap-2 cursor-pointer hover:scale-105 transition-transform" onClick={() => setCurrentView('DASHBOARD')}>
+                <div className="bg-blue-600 text-white p-1 sm:p-1.5 rounded-lg">
+                  <Activity className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
-                <span className="font-bold text-xl text-slate-800 tracking-tight">SERVYSALUD 360 - Trabajo Modificado</span>
+                <span className="font-bold text-sm sm:text-lg lg:text-xl text-slate-800 tracking-tight truncate">
+                  <span className="hidden sm:inline">SERVYSALUD 360 - </span>
+                  <span className="hidden xs:inline sm:hidden">SERVYSALUD</span>
+                  <span className="sm:hidden">S360</span>
+                  <span className="hidden sm:inline">Trabajo Modificado</span>
+                </span>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <button 
                 onClick={handleToggleChat}
                 className={`
-                  px-6 py-3 rounded-xl text-base font-bold shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-2
+                  px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm lg:text-base font-bold shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2
                   ${showGeminiChat 
-                    ? 'bg-purple-700 text-white ring-4 ring-purple-200' 
+                    ? 'bg-purple-700 text-white ring-2 sm:ring-4 ring-purple-200' 
                     : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'}
                 `}
               >
-                <MessageSquare size={22} className="stroke-2" />
-                {showGeminiChat ? 'Cerrar Chat' : 'Asistente IA'}
+                <MessageSquare size={18} className="sm:w-5 sm:h-5 lg:w-[22px] lg:h-[22px] stroke-2" />
+                <span className="hidden sm:inline">{showGeminiChat ? 'Cerrar Chat' : 'Asistente IA'}</span>
+                <span className="sm:hidden">IA</span>
               </button>
               <button 
                 onClick={handleCreateNew}
                 className={`
-                  px-6 py-3 rounded-xl text-base font-bold shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-2
+                  px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm lg:text-base font-bold shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2
                   ${currentView === 'NEW_CASE' 
-                    ? 'bg-blue-700 text-white ring-4 ring-blue-200' 
+                    ? 'bg-blue-700 text-white ring-2 sm:ring-4 ring-blue-200' 
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'}
                 `}
               >
-                <PlusCircle size={22} className="stroke-2" />
-                Nuevo Caso
+                <PlusCircle size={18} className="sm:w-5 sm:h-5 lg:w-[22px] lg:h-[22px] stroke-2" />
+                <span className="hidden sm:inline">Nuevo Caso</span>
+                <span className="sm:hidden">Nuevo</span>
               </button>
             </div>
           </div>
@@ -464,7 +471,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
         {currentView === 'DASHBOARD' && (
           <Dashboard 
             onEdit={handleEditCase} 
@@ -482,23 +489,23 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
 
       {/* Chat de Gemini - Panel flotante */}
       {showGeminiChat && (
-        <div className="fixed bottom-4 right-4 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 flex flex-col max-h-[600px]">
+        <div className="fixed inset-0 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-96 bg-white rounded-none sm:rounded-lg shadow-2xl border-0 sm:border border-gray-200 z-50 flex flex-col max-h-screen sm:max-h-[600px]">
           {/* Header */}
-          <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 rounded-t-lg flex justify-between items-center">
+          <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-3 sm:p-4 rounded-t-none sm:rounded-t-lg flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <MessageSquare size={20} />
-              <h3 className="font-bold text-lg">Asistente IA - Gemini</h3>
+              <MessageSquare size={18} className="sm:w-5 sm:h-5" />
+              <h3 className="font-bold text-base sm:text-lg">Asistente IA - Gemini</h3>
             </div>
             <button
               onClick={handleToggleChat}
               className="hover:bg-white/20 rounded p-1 transition-colors"
             >
-              <X size={20} />
+              <X size={18} className="sm:w-5 sm:h-5" />
             </button>
           </div>
 
           {/* Área de respuesta */}
-          <div className="flex-1 overflow-y-auto p-4 bg-gray-50 min-h-[200px]">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gray-50 min-h-[200px]">
             {/* Zona de drag and drop para PDF */}
             {!uploadedFile && (
               <div
@@ -514,11 +521,11 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
                   }
                 `}
               >
-                <Upload size={32} className={`mx-auto mb-2 ${isDragging ? 'text-purple-600' : 'text-gray-400'}`} />
-                <p className="text-sm font-semibold text-gray-700 mb-1">
+                <Upload size={24} className={`sm:w-8 sm:h-8 mx-auto mb-2 ${isDragging ? 'text-purple-600' : 'text-gray-400'}`} />
+                <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-1">
                   Arrastra un PDF aquí o haz clic para seleccionar
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-[10px] sm:text-xs text-gray-500">
                   Analiza exámenes médicos y extrae datos relevantes
                 </p>
                 <input
@@ -630,14 +637,14 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
           </div>
 
           {/* Input area */}
-          <div className="p-4 border-t border-gray-200 bg-white rounded-b-lg">
+          <div className="p-3 sm:p-4 border-t border-gray-200 bg-white rounded-b-none sm:rounded-b-lg">
             <div className="flex gap-2">
               <textarea
                 value={userPrompt}
                 onChange={(e) => setUserPrompt(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Escribe tu pregunta aquí..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
                 rows={3}
                 disabled={isLoading || !geminiModelRef.current}
               />
@@ -645,7 +652,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
                 onClick={handleSendPrompt}
                 disabled={isLoading || !userPrompt.trim() || !geminiModelRef.current}
                 className={`
-                  px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2
+                  px-3 sm:px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 sm:gap-2 flex-shrink-0
                   ${isLoading || !userPrompt.trim() || !geminiModelRef.current
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg'
@@ -653,14 +660,14 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
                 `}
               >
                 {isLoading ? (
-                  <Loader2 className="animate-spin" size={20} />
+                  <Loader2 className="animate-spin w-[18px] h-[18px] sm:w-5 sm:h-5" />
                 ) : (
-                  <Send size={20} />
+                  <Send className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
                 )}
               </button>
             </div>
             {!geminiModelRef.current && (
-              <p className="text-xs text-red-600 mt-2">
+              <p className="text-[10px] sm:text-xs text-red-600 mt-2">
                 ⚠️ NEXT_PUBLIC_GEMINI_API_KEY no está configurada
               </p>
             )}
