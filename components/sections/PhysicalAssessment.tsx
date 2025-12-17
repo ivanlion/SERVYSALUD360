@@ -396,7 +396,7 @@ export default function PhysicalAssessmentComponent({ assessment, onChange, read
                      <tr className="bg-blue-50/50 text-blue-900 text-[10px] uppercase tracking-wider">
                         {levels.map((l) => (
                             <th key={l.id} className="border border-blue-200 py-2 px-1 text-center align-middle font-semibold bg-blue-50/50 w-[8%]">
-                                {isRequirements ? l.label : l.short}
+                                {isRequirements ? l.label : ('short' in l ? l.short : l.label)}
                             </th>
                         ))}
                         {isRequirements && (

@@ -49,7 +49,7 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
       gerencia: record.gerencia || '',
       supervisor: record.supervisor_responsable || '',
       supervisorTelf: record.telf_contacto_supervisor || '',
-      tipoEvento: EventType.ACCIDENTE, // Valor por defecto
+      tipoEvento: EventType.ACCIDENTE_TRABAJO, // Valor por defecto
       assessment: { ...INITIAL_CASE.assessment },
       assessment2: { ...INITIAL_CASE.assessment },
       tareasRealizar: '',
