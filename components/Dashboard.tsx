@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CaseData, INITIAL_CASE } from '../types';
+import { CaseData, INITIAL_CASE, EventType } from '../types';
 import { supabase } from '../lib/supabase';
 import { Edit2, Search, Building2, Users, Calendar, Clock, Activity, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -49,7 +49,7 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
       gerencia: record.gerencia || '',
       supervisor: record.supervisor_responsable || '',
       supervisorTelf: record.telf_contacto_supervisor || '',
-      tipoEvento: 'Accidente de Trabajo', // Valor por defecto
+      tipoEvento: EventType.ACCIDENTE_TRABAJO, // Valor por defecto
       assessment: { ...INITIAL_CASE.assessment },
       assessment2: { ...INITIAL_CASE.assessment },
       tareasRealizar: '',
