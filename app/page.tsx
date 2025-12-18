@@ -1,3 +1,16 @@
+/**
+ * SERVYSALUD 360 - Sistema de Trabajo Modificado
+ * 
+ * Página principal de la aplicación que gestiona:
+ * - Dashboard de casos
+ * - Formulario de registro de trabajo modificado
+ * - Asistente IA con Google Gemini
+ * - Análisis de PDFs médicos
+ * 
+ * @author Servysalud 360
+ * @version 1.0.0
+ */
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -18,7 +31,10 @@ import Dashboard from '../components/Dashboard';
 import CaseForm from '../components/CaseForm';
 import { CaseData, INITIAL_CASE, createNewReevaluation } from '../types';
 
-// Mock Data for demonstration
+/**
+ * Datos de ejemplo para demostración (no se utilizan en producción)
+ * Los datos reales se obtienen de Supabase
+ */
 const MOCK_CASES: CaseData[] = [
   {
     ...INITIAL_CASE,
@@ -105,8 +121,15 @@ const MOCK_CASES: CaseData[] = [
   }
 ];
 
+/**
+ * Tipos de vista disponibles en la aplicación
+ */
 type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE';
 
+/**
+ * Componente principal de la aplicación
+ * Gestiona el estado global, navegación y el asistente IA
+ */
 export default function Home() {
   const [currentView, setCurrentView] = useState<View>('DASHBOARD');
   const [cases, setCases] = useState<CaseData[]>([]);
@@ -129,7 +152,10 @@ export default function Home() {
   const geminiModelRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Inicializar Gemini al montar el componente
+  /**
+   * Inicializa el modelo de Google Gemini AI al montar el componente
+   * Configura el sistema de instrucciones para actuar como experto en salud ocupacional
+   */
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!apiKey) {
@@ -177,7 +203,9 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     }
   }, []);
 
-  // Enviar mensaje de bienvenida cuando se abre el chat por primera vez
+  /**
+   * Envía un mensaje de bienvenida automático cuando se abre el chat por primera vez
+   */
   useEffect(() => {
     if (showGeminiChat && !hasWelcomed && geminiModelRef.current && !isLoading) {
       const sendWelcomeMessage = async () => {
@@ -200,6 +228,10 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     }
   }, [showGeminiChat, hasWelcomed, isLoading]);
 
+  /**
+   * Maneja el guardado de un caso (crear nuevo o actualizar existente)
+   * @param caseData - Datos del caso a guardar
+   */
   const handleSaveCase = (caseData: CaseData) => {
     if (selectedCase) {
       // Update existing
@@ -213,6 +245,11 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     setSelectedCase(null);
   };
 
+  /**
+   * Maneja la edición de un caso existente
+   * Asegura que los arrays de reevaluaciones y assessment2 existan
+   * @param caseData - Datos del caso a editar
+   */
   const handleEditCase = (caseData: CaseData) => {
     // If opening a new case that has no reevaluations yet, we might want to ensure the array exists
     if (!caseData.reevaluaciones) {
@@ -231,7 +268,10 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     setCurrentView('NEW_CASE');
   };
 
-  // Manejar toggle del chat
+  /**
+   * Maneja la apertura/cierre del panel de chat de Gemini
+   * Resetea el estado de bienvenida al cerrar
+   */
   const handleToggleChat = () => {
     if (showGeminiChat) {
       // Al cerrar el chat, resetear el estado de bienvenida para que se muestre de nuevo al abrir
@@ -242,7 +282,10 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     setShowGeminiChat(!showGeminiChat);
   };
 
-  // Función para enviar prompt a Gemini
+  /**
+   * Envía un prompt al modelo de Gemini y muestra la respuesta
+   * Maneja errores y estados de carga
+   */
   const handleSendPrompt = async () => {
     if (!userPrompt.trim() || !geminiModelRef.current) {
       setError('Por favor ingresa un mensaje y asegúrate de que NEXT_PUBLIC_GEMINI_API_KEY esté configurada');
@@ -272,7 +315,9 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     }
   };
 
-  // Manejar Enter para enviar
+  /**
+   * Maneja la tecla Enter para enviar el mensaje (Shift+Enter para nueva línea)
+   */
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -280,7 +325,11 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     }
   };
 
-  // Convertir archivo a base64
+  /**
+   * Convierte un archivo a formato base64 para enviarlo a Gemini
+   * @param file - Archivo a convertir
+   * @returns Promise con el string en base64
+   */
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -327,7 +376,11 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     }
   };
 
-  // Procesar y analizar PDF
+  /**
+   * Procesa y analiza un archivo PDF usando Gemini AI
+   * Extrae información estructurada de exámenes médicos
+   * @param file - Archivo PDF a analizar
+   */
   const handleFileUpload = async (file: File) => {
     if (!geminiModelRef.current) {
       setError('Gemini no está inicializado. Verifica tu API key.');

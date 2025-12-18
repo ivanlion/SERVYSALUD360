@@ -1,3 +1,12 @@
+/**
+ * CaseForm - Formulario multi-paso para registro de trabajo modificado
+ * 
+ * Componente principal que gestiona el registro y edición de casos
+ * con validación por pasos y guardado en Supabase
+ * 
+ * @component
+ */
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -250,6 +259,10 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
     setLockedSteps(prev => ({ ...prev, [currentStep]: true }));
   };
 
+  /**
+   * Valida y guarda el formulario completo en Supabase
+   * Muestra notificaciones de éxito o error
+   */
   const validateAndSave = async () => {
     const warnings: string[] = [];
 

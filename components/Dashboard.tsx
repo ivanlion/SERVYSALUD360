@@ -1,3 +1,12 @@
+/**
+ * Dashboard - Componente principal de visualización de casos
+ * 
+ * Muestra un listado de todos los casos de trabajo modificado
+ * con funcionalidades de búsqueda, filtrado y KPIs
+ * 
+ * @component
+ */
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -31,7 +40,12 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Función para mapear datos de Supabase a CaseData
+  /**
+   * Mapea los datos de Supabase al formato CaseData de la aplicación
+   * @param record - Registro de Supabase
+   * @param index - Índice para generar ID temporal
+   * @returns Objeto CaseData mapeado
+   */
   const mapSupabaseToCaseData = (record: SupabaseRecord, index: number): CaseData => {
     return {
       ...INITIAL_CASE,
@@ -60,7 +74,9 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
     };
   };
 
-  // Cargar datos de Supabase
+  /**
+   * Carga los datos de casos desde Supabase al montar el componente
+   */
   useEffect(() => {
     const loadCases = async () => {
       setIsLoading(true);
