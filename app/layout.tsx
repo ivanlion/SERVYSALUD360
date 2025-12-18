@@ -6,7 +6,7 @@
  * @module app/layout
  */
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -25,8 +25,13 @@ export const metadata: Metadata = {
   description: "Sistema de gestión de trabajo modificado para Servysalud. Gestión de casos, evaluación de capacidades funcionales y seguimiento de restricciones laborales.",
   keywords: ["salud ocupacional", "trabajo modificado", "servysalud", "seguridad laboral", "gestión de casos"],
   authors: [{ name: "Servysalud 360" }],
-  viewport: "width=device-width, initial-scale=1, maximum-scale=5",
   robots: "noindex, nofollow", // Cambiar según necesidades de SEO
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({
