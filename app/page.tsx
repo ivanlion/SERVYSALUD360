@@ -24,12 +24,17 @@ import {
   Loader2,
   FileText,
   Upload,
-  Trash2
+  Trash2,
+  LogOut,
+  User
 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Dashboard from '../components/Dashboard';
 import CaseForm from '../components/CaseForm';
+import AuthGuard from '../components/AuthGuard';
 import { CaseData, INITIAL_CASE, createNewReevaluation } from '../types';
+import { supabase } from '../lib/supabase';
+import { useRouter } from 'next/navigation';
 
 /**
  * Datos de ejemplo para demostración (no se utilizan en producción)
@@ -131,9 +136,11 @@ type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE';
  * Gestiona el estado global, navegación y el asistente IA
  */
 export default function Home() {
+  const router = useRouter();
   const [currentView, setCurrentView] = useState<View>('DASHBOARD');
   const [cases, setCases] = useState<CaseData[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
+  const [user, setUser] = useState<any>(null);
   
   // Estados para Gemini
   const [showGeminiChat, setShowGeminiChat] = useState(false);
@@ -151,6 +158,38 @@ export default function Home() {
   // Referencia para el modelo de Gemini
   const geminiModelRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Obtener información del usuario autenticado
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+
+    // Escuchar cambios en la autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setUser(session.user);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Función para cerrar sesión
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/login');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    }
+  };
 
   /**
    * Inicializa el modelo de Google Gemini AI al montar el componente
@@ -473,7 +512,8 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <AuthGuard>
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Navbar */}
       <nav className="bg-white border-b border-blue-100 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
@@ -492,6 +532,15 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
+              {/* Información del usuario */}
+              {user && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
+                  <User size={16} className="text-slate-600" />
+                  <span className="text-xs font-medium text-slate-700 truncate max-w-[120px]">
+                    {user.email}
+                  </span>
+                </div>
+              )}
               <button 
                 onClick={handleToggleChat}
                 className={`
@@ -517,6 +566,14 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
                 <PlusCircle size={18} className="sm:w-5 sm:h-5 lg:w-[22px] lg:h-[22px] stroke-2" />
                 <span className="hidden sm:inline">Nuevo Caso</span>
                 <span className="sm:hidden">Nuevo</span>
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold bg-red-600 text-white hover:bg-red-700 shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2"
+                title="Cerrar sesión"
+              >
+                <LogOut size={18} className="sm:w-5 sm:h-5 stroke-2" />
+                <span className="hidden sm:inline">Salir</span>
               </button>
             </div>
           </div>
@@ -727,6 +784,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AuthGuard>
   );
 }

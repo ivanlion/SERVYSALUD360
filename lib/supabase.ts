@@ -28,10 +28,16 @@ if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
  * 
  * @throws {Error} Si las credenciales no están configuradas correctamente
  */
+/**
+ * Cliente de Supabase exportado para uso en toda la aplicación
+ * 
+ * @throws {Error} Si las credenciales no están configuradas correctamente
+ */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false, // No persistir sesión en el cliente
-    autoRefreshToken: false,
+    persistSession: true, // Persistir sesión para autenticación
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
   },
 });
 
