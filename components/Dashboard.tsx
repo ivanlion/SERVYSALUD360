@@ -12,7 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { CaseData, INITIAL_CASE, EventType } from '../types';
 import { supabase } from '../lib/supabase';
-import { Edit2, Search, Building2, Users, Calendar, Clock, Activity, AlertCircle, Loader2 } from 'lucide-react';
+import { Edit2, Search, Building2, Users, Calendar, Clock, Activity, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 
 interface DashboardProps {
   onEdit: (data: CaseData) => void;
@@ -21,6 +21,7 @@ interface DashboardProps {
 
 // Interfaz para los datos que vienen de Supabase
 interface SupabaseRecord {
+  id?: number; // ID de Supabase para eliminar
   fecha_registro: string;
   apellidos_nombre: string;
   dni_ce_pas: string;
@@ -34,22 +35,29 @@ interface SupabaseRecord {
   telf_contacto_supervisor: string;
 }
 
+// Extender CaseData para incluir el ID de Supabase
+interface CaseDataWithSupabaseId extends CaseData {
+  supabaseId?: number;
+}
+
 export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [cases, setCases] = useState<CaseData[]>([]);
+  const [cases, setCases] = useState<CaseDataWithSupabaseId[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   /**
    * Mapea los datos de Supabase al formato CaseData de la aplicación
    * @param record - Registro de Supabase
    * @param index - Índice para generar ID temporal
-   * @returns Objeto CaseData mapeado
+   * @returns Objeto CaseData mapeado con ID de Supabase
    */
-  const mapSupabaseToCaseData = (record: SupabaseRecord, index: number): CaseData => {
+  const mapSupabaseToCaseData = (record: SupabaseRecord, index: number): CaseDataWithSupabaseId => {
     return {
       ...INITIAL_CASE,
       id: `PO-0006-${String(index + 1).padStart(3, '0')}`, // Generar ID temporal
+      supabaseId: record.id, // Guardar el ID real de Supabase
       status: 'ACTIVO', // Valor por defecto ya que no está en la tabla
       createdAt: record.fecha_registro || new Date().toISOString(),
       fecha: record.fecha_registro || '',
@@ -175,6 +183,50 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
     const endDay = String(date.getDate()).padStart(2, '0');
 
     return `${endYear}-${endMonth}-${endDay}`;
+  };
+
+  /**
+   * Maneja la eliminación de un caso con confirmación
+   * @param caseData - Datos del caso a eliminar
+   */
+  const handleDelete = async (caseData: CaseDataWithSupabaseId) => {
+    // Confirmar eliminación
+    const confirmMessage = `¿Estás seguro de que deseas eliminar el registro de ${caseData.trabajadorNombre} (DNI: ${caseData.dni})?\n\nEsta acción no se puede deshacer.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    // Si no hay ID de Supabase, no se puede eliminar
+    if (!caseData.supabaseId) {
+      alert('Error: No se puede eliminar este registro. Falta el ID de la base de datos.');
+      return;
+    }
+
+    setDeletingId(caseData.id);
+
+    try {
+      // Eliminar de Supabase usando el ID real
+      const { error: deleteError } = await supabase
+        .from('registros_trabajadores')
+        .delete()
+        .eq('id', caseData.supabaseId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      // Eliminar del estado local
+      setCases(prevCases => prevCases.filter(c => c.id !== caseData.id));
+      
+      // Mostrar mensaje de éxito
+      alert(`Registro de ${caseData.trabajadorNombre} eliminado exitosamente.`);
+    } catch (err: any) {
+      console.error('Error al eliminar registro:', err);
+      alert(`Error al eliminar el registro: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   // Mostrar estado de carga
@@ -397,13 +449,28 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
                     </span>
                   </td>
                   <td className="px-3 sm:px-6 py-3 sm:py-4 text-right">
-                    <button 
-                      onClick={() => onEdit(c)}
-                      className="text-slate-400 hover:text-blue-600 transition-colors p-1"
-                      title="Editar caso"
-                    >
-                      <Edit2 size={18} className="sm:w-5 sm:h-5" />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => onEdit(c)}
+                        className="text-slate-400 hover:text-blue-600 transition-colors p-1"
+                        title="Editar caso"
+                        disabled={deletingId === c.id}
+                      >
+                        <Edit2 size={18} className="sm:w-5 sm:h-5" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(c)}
+                        className="text-slate-400 hover:text-red-600 transition-colors p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Eliminar caso"
+                        disabled={deletingId === c.id}
+                      >
+                        {deletingId === c.id ? (
+                          <Loader2 size={18} className="sm:w-5 sm:h-5 animate-spin text-red-600" />
+                        ) : (
+                          <Trash2 size={18} className="sm:w-5 sm:h-5" />
+                        )}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )})}
