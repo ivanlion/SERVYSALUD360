@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useOptimistic } from 'react';
+import React, { useState, useEffect, useOptimistic, useTransition } from 'react';
 import { Check, Plus, X, Loader2, AlertCircle, CheckCircle, Pencil, Trash2 } from 'lucide-react';
 import { createUser } from '../app/actions/create-user';
 import { getUsers } from '../app/actions/get-users';
@@ -73,6 +73,9 @@ export default function AccessManagement() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [updatingPermissions, setUpdatingPermissions] = useState<Set<string>>(new Set());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  
+  // useTransition para envolver actualizaciones optimistas
+  const [isPending, startTransition] = useTransition();
 
   // useOptimistic para actualización instantánea de permisos
   const [optimisticUsers, setOptimisticUsers] = useOptimistic(
@@ -141,7 +144,7 @@ export default function AccessManagement() {
   }, []);
 
   // Manejar cambio de permisos con actualización optimista y persistencia en BD
-  const handlePermissionChange = async (
+  const handlePermissionChange = (
     userId: string,
     permissionKey: keyof User['permissions']
   ) => {
@@ -157,57 +160,12 @@ export default function AccessManagement() {
     const newValue = !currentUser.permissions[permissionKey];
     const updateKey = `${userId}-${permissionKey}`;
 
-    // Actualización optimista inmediata
-    setOptimisticUsers({ userId, permissionKey, newValue });
+    // Envolvemos todo en startTransition para satisfacer a React 19
+    startTransition(async () => {
+      // 1. UI Instantánea (Optimistic Update)
+      setOptimisticUsers({ userId, permissionKey, newValue });
 
-    // Actualizar estado local también
-    setUsers(prevUsers =>
-      prevUsers.map(user =>
-        user.id === userId
-          ? {
-              ...user,
-              permissions: {
-                ...user.permissions,
-                [permissionKey]: newValue,
-              },
-            }
-          : user
-      )
-    );
-
-    // Marcar como actualizando
-    setUpdatingPermissions(prev => new Set(prev).add(updateKey));
-
-    try {
-      // Llamar a la Server Action para persistir en BD
-      const result = await togglePermission(userId, permissionKey, newValue);
-
-      if (!result.success) {
-        // Si falla, revertir el cambio optimista
-        setUsers(prevUsers =>
-          prevUsers.map(user =>
-            user.id === userId
-              ? {
-                  ...user,
-                  permissions: {
-                    ...user.permissions,
-                    [permissionKey]: !newValue, // Revertir
-                  },
-                }
-              : user
-          )
-        );
-        setOptimisticUsers({ userId, permissionKey, newValue: !newValue });
-        
-        // Mostrar error
-        setNotification({
-          type: 'error',
-          message: result.message || 'Error al actualizar el permiso',
-        });
-      }
-    } catch (error: any) {
-      console.error('Error al actualizar permiso:', error);
-      // Revertir cambio optimista
+      // Actualizar estado local también
       setUsers(prevUsers =>
         prevUsers.map(user =>
           user.id === userId
@@ -215,26 +173,74 @@ export default function AccessManagement() {
                 ...user,
                 permissions: {
                   ...user.permissions,
-                  [permissionKey]: !newValue,
+                  [permissionKey]: newValue,
                 },
               }
             : user
         )
       );
-      setOptimisticUsers({ userId, permissionKey, newValue: !newValue });
-      
-      setNotification({
-        type: 'error',
-        message: error.message || 'Error inesperado al actualizar el permiso',
-      });
-    } finally {
-      // Quitar de la lista de actualizando
-      setUpdatingPermissions(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(updateKey);
-        return newSet;
-      });
-    }
+
+      // Marcar como actualizando
+      setUpdatingPermissions(prev => new Set(prev).add(updateKey));
+
+      // 2. Llamada real al Servidor
+      try {
+        const result = await togglePermission(userId, permissionKey, newValue);
+
+        if (!result.success) {
+          // Si falla, revertir el cambio optimista
+          setUsers(prevUsers =>
+            prevUsers.map(user =>
+              user.id === userId
+                ? {
+                    ...user,
+                    permissions: {
+                      ...user.permissions,
+                      [permissionKey]: !newValue, // Revertir
+                    },
+                  }
+                : user
+            )
+          );
+          setOptimisticUsers({ userId, permissionKey, newValue: !newValue });
+          
+          // Mostrar error
+          setNotification({
+            type: 'error',
+            message: result.message || 'Error al actualizar el permiso',
+          });
+        }
+      } catch (error: any) {
+        console.error('Error al guardar permiso:', error);
+        // Revertir cambio optimista
+        setUsers(prevUsers =>
+          prevUsers.map(user =>
+            user.id === userId
+              ? {
+                  ...user,
+                  permissions: {
+                    ...user.permissions,
+                    [permissionKey]: !newValue,
+                  },
+                }
+              : user
+          )
+        );
+        setOptimisticUsers({ userId, permissionKey, newValue: !newValue });
+        
+        setNotification({
+          type: 'error',
+          message: error.message || 'Error inesperado al actualizar el permiso',
+        });
+      } finally {
+        // Quitar de la lista de actualizando
+        setUpdatingPermissions(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(updateKey);
+          return newSet;
+        });
+      }
+    });
   };
 
   // Manejar cambio en los campos del formulario
