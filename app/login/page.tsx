@@ -1,5 +1,5 @@
 /**
- * Página de Login - SERVYSALUD 360
+ * Página de Login - Sistema de Gestión de Salud Ocupacional
  * 
  * Sistema de autenticación usando Supabase Auth
  * 
@@ -88,8 +88,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-2xl mb-4 shadow-lg">
             <Activity className="text-white" size={40} />
           </div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">SERVYSALUD 360</h1>
-          <p className="text-slate-600">Sistema de Trabajo Modificado</p>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Sistema de Gestión de Salud Ocupacional</h1>
+          <p className="text-slate-600">Plataforma integral de vigilancia y cumplimiento médico</p>
         </div>
 
         {/* Card de Login */}
@@ -190,14 +190,14 @@ export default function LoginPage() {
           {/* Información adicional */}
           <div className="mt-6 pt-6 border-t border-slate-200">
             <p className="text-xs text-center text-slate-500">
-              Sistema seguro de gestión de trabajo modificado
+              Plataforma segura de gestión de salud ocupacional
             </p>
           </div>
         </div>
 
         {/* Footer */}
         <p className="text-center text-sm text-slate-500 mt-6">
-          © 2024 Servysalud 360. Todos los derechos reservados.
+          © 2025 Sistema de Gestión de Salud Ocupacional - Todos los derechos reservados
         </p>
       </div>
     </div>
