@@ -9,6 +9,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { CaseData } from '../types';
 import { Briefcase, Heart, Shield, Settings, Users } from 'lucide-react';
 import { useNavigation } from '../contexts/NavigationContext';
@@ -107,10 +108,9 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
             dark: 'bg-white/10 text-white'
           };
 
-          return (
-            <button
-              key={card.id}
-              onClick={card.onClick}
+          // Contenido de la tarjeta
+          const cardContent = (
+            <div
               className={`
                 relative p-6 rounded-2xl shadow-sm border border-gray-100 transition-all duration-200
                 transform hover:scale-[1.02] hover:shadow-md cursor-pointer
@@ -146,6 +146,34 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
               `}>
                 {card.description}
               </p>
+            </div>
+          );
+
+          // Si es Administración, envolver con Link
+          if (card.id === 'administracion') {
+            return (
+              <Link
+                key={card.id}
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  card.onClick();
+                }}
+                className="block"
+              >
+                {cardContent}
+              </Link>
+            );
+          }
+
+          // Para otras tarjetas, usar button normal
+          return (
+            <button
+              key={card.id}
+              onClick={card.onClick}
+              className="w-full"
+            >
+              {cardContent}
             </button>
           );
         })}
