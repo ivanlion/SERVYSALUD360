@@ -9,10 +9,12 @@
 'use client';
 
 import React, { useState, useEffect, useOptimistic } from 'react';
-import { Check, Plus, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Check, Plus, X, Loader2, AlertCircle, CheckCircle, Pencil, Trash2 } from 'lucide-react';
 import { createUser } from '../app/actions/create-user';
 import { getUsers } from '../app/actions/get-users';
 import { togglePermission } from '../app/actions/toggle-permission';
+import { updateUser, deleteUser } from '../app/actions/admin-actions';
+import { supabase } from '../lib/supabase';
 
 interface User {
   id: string;
@@ -64,10 +66,13 @@ const getAvatarColor = (name: string | null, email: string): string => {
 export default function AccessManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [updatingPermissions, setUpdatingPermissions] = useState<Set<string>>(new Set());
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // useOptimistic para actualización instantánea de permisos
   const [optimisticUsers, setOptimisticUsers] = useOptimistic(
@@ -94,6 +99,22 @@ export default function AccessManagement() {
     password: '',
     rol: 'Usuario', // Valor por defecto
   });
+
+  // Obtener el usuario actual
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setCurrentUserId(user.id);
+        }
+      } catch (error) {
+        console.error('Error al obtener usuario actual:', error);
+      }
+    };
+
+    getCurrentUser();
+  }, []);
 
   // Cargar usuarios de Supabase al montar el componente
   useEffect(() => {
@@ -225,76 +246,202 @@ export default function AccessManagement() {
     }));
   };
 
-  // Manejar envío del formulario
+  // Manejar envío del formulario (crear o editar)
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setNotification(null);
 
     try {
-      // Crear FormData para el Server Action
-      const formDataToSend = new FormData();
-      formDataToSend.append('nombre', formData.nombre);
-      formDataToSend.append('email', formData.email);
-      formDataToSend.append('password', formData.password);
-      formDataToSend.append('rol', formData.rol);
+      if (isEditMode && editingUserId) {
+        // Modo edición: actualizar usuario existente
+        const formDataToSend = new FormData();
+        formDataToSend.append('userId', editingUserId);
+        formDataToSend.append('nombre', formData.nombre);
+        formDataToSend.append('rol', formData.rol);
 
-      // Llamar al Server Action
-      const result = await createUser(formDataToSend);
+        const result = await updateUser(formDataToSend);
+
+        if (result.success) {
+          setNotification({
+            type: 'success',
+            message: result.message || 'Usuario actualizado exitosamente',
+          });
+
+          // Recargar usuarios desde Supabase
+          const reloadResult = await getUsers();
+          if (reloadResult.success && reloadResult.users.length > 0) {
+            setUsers(reloadResult.users);
+          }
+
+          // Cerrar el modal después de 1.5 segundos
+          setTimeout(() => {
+            setIsModalOpen(false);
+            setIsEditMode(false);
+            setEditingUserId(null);
+            setNotification(null);
+            setFormData({
+              nombre: '',
+              email: '',
+              password: '',
+              rol: 'Usuario',
+            });
+          }, 1500);
+        } else {
+          setNotification({
+            type: 'error',
+            message: result.message || 'Error al actualizar el usuario',
+          });
+        }
+      } else {
+        // Modo creación: crear nuevo usuario
+        const formDataToSend = new FormData();
+        formDataToSend.append('nombre', formData.nombre);
+        formDataToSend.append('email', formData.email);
+        formDataToSend.append('password', formData.password);
+        formDataToSend.append('rol', formData.rol);
+
+        const result = await createUser(formDataToSend);
+
+        if (result.success) {
+          // Mostrar notificación de éxito
+          setNotification({
+            type: 'success',
+            message: result.message || 'Usuario creado exitosamente',
+          });
+
+          // Recargar usuarios desde Supabase para obtener el usuario recién creado
+          const reloadResult = await getUsers();
+          if (reloadResult.success && reloadResult.users.length > 0) {
+            setUsers(reloadResult.users);
+          } else {
+            // Si falla la recarga, agregar el usuario localmente como fallback
+            const newUser: User = {
+              id: result.userId || `temp-${Date.now()}`,
+              name: formData.nombre,
+              email: formData.email,
+              role: formData.rol,
+              permissions: {
+                trabajoModificado: false,
+                vigilanciaMedica: false,
+                seguimientoTrabajadores: false,
+                seguridadHigiene: false,
+              },
+            };
+            setUsers(prevUsers => [...prevUsers, newUser]);
+          }
+
+          // Limpiar el formulario
+          setFormData({
+            nombre: '',
+            email: '',
+            password: '',
+            rol: 'Usuario',
+          });
+
+          // Cerrar el modal automáticamente después de mostrar éxito
+          setTimeout(() => {
+            setIsModalOpen(false);
+            setNotification(null);
+          }, 1500);
+        } else {
+          // Mostrar notificación de error
+          setNotification({
+            type: 'error',
+            message: result.message || 'Error al crear el usuario',
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Error al procesar usuario:', error);
+      setNotification({
+        type: 'error',
+        message: error.message || 'Error inesperado al procesar el usuario',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Abrir modal para editar usuario
+  const handleEditUser = (user: User) => {
+    setEditingUserId(user.id);
+    setIsEditMode(true);
+    setFormData({
+      nombre: user.name || '',
+      email: user.email,
+      password: '', // No mostrar contraseña en edición
+      rol: user.role,
+    });
+    setIsModalOpen(true);
+    setNotification(null);
+  };
+
+  // Abrir modal para crear nuevo usuario
+  const handleCreateUser = () => {
+    setIsEditMode(false);
+    setEditingUserId(null);
+    setFormData({
+      nombre: '',
+      email: '',
+      password: '',
+      rol: 'Usuario',
+    });
+    setIsModalOpen(true);
+    setNotification(null);
+  };
+
+  // Manejar eliminación de usuario
+  const handleDeleteUser = async (user: User) => {
+    // Prevenir auto-eliminación
+    if (currentUserId === user.id) {
+      alert('No puedes eliminar tu propia cuenta. Contacta a otro administrador.');
+      return;
+    }
+
+    // Confirmar eliminación
+    const confirmMessage = `¿Estás seguro de que deseas eliminar al usuario ${user.name || user.email}?\n\nEsta acción no se puede deshacer y eliminará el usuario del sistema de autenticación.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsLoading(true);
+    setNotification(null);
+
+    try {
+      const result = await deleteUser(user.id);
 
       if (result.success) {
-        // Mostrar notificación de éxito
         setNotification({
           type: 'success',
-          message: result.message || 'Usuario creado exitosamente',
+          message: result.message || 'Usuario eliminado exitosamente',
         });
 
-        // Recargar usuarios desde Supabase para obtener el usuario recién creado
+        // Recargar usuarios desde Supabase
         const reloadResult = await getUsers();
         if (reloadResult.success && reloadResult.users.length > 0) {
           setUsers(reloadResult.users);
         } else {
-          // Si falla la recarga, agregar el usuario localmente como fallback
-          const newUser: User = {
-            id: result.userId || `temp-${Date.now()}`,
-            name: formData.nombre,
-            email: formData.email,
-            role: formData.rol,
-            permissions: {
-              trabajoModificado: false,
-              vigilanciaMedica: false,
-              seguimientoTrabajadores: false,
-              seguridadHigiene: false,
-            },
-          };
-          setUsers(prevUsers => [...prevUsers, newUser]);
+          // Si falla la recarga, eliminar localmente
+          setUsers(prevUsers => prevUsers.filter(u => u.id !== user.id));
         }
 
-        // Limpiar el formulario
-        setFormData({
-          nombre: '',
-          email: '',
-          password: '',
-          rol: 'Usuario',
-        });
-
-        // Cerrar el modal automáticamente después de mostrar éxito
+        // Limpiar notificación después de 2 segundos
         setTimeout(() => {
-          setIsModalOpen(false);
           setNotification(null);
-        }, 1500);
+        }, 2000);
       } else {
-        // Mostrar notificación de error
         setNotification({
           type: 'error',
-          message: result.message || 'Error al crear el usuario',
+          message: result.message || 'Error al eliminar el usuario',
         });
       }
     } catch (error: any) {
-      console.error('Error al crear usuario:', error);
+      console.error('Error al eliminar usuario:', error);
       setNotification({
         type: 'error',
-        message: error.message || 'Error inesperado al crear el usuario',
+        message: error.message || 'Error inesperado al eliminar el usuario',
       });
     } finally {
       setIsLoading(false);
@@ -304,6 +451,8 @@ export default function AccessManagement() {
   // Cerrar modal y limpiar estado
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setIsEditMode(false);
+    setEditingUserId(null);
     setNotification(null);
     setFormData({
       nombre: '',
@@ -327,7 +476,7 @@ export default function AccessManagement() {
         </div>
         {/* Botón Agregar Usuario */}
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleCreateUser}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
         >
           <Plus size={18} />
@@ -371,6 +520,9 @@ export default function AccessManagement() {
                 </th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   SEGURIDAD E HIGIENE
+                </th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  ACCIONES
                 </th>
               </tr>
             </thead>
@@ -540,6 +692,35 @@ export default function AccessManagement() {
                       </div>
                     </label>
                   </td>
+
+                  {/* Columna Acciones */}
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      {/* Botón Editar */}
+                      <button
+                        onClick={() => handleEditUser(user)}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Editar usuario"
+                        disabled={isLoading}
+                      >
+                        <Pencil size={18} />
+                      </button>
+                      
+                      {/* Botón Eliminar */}
+                      <button
+                        onClick={() => handleDeleteUser(user)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          currentUserId === user.id
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-red-600 hover:bg-red-50'
+                        }`}
+                        title={currentUserId === user.id ? 'No puedes eliminar tu propia cuenta' : 'Eliminar usuario'}
+                        disabled={isLoading || currentUserId === user.id}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
                 );
               })}
@@ -614,31 +795,37 @@ export default function AccessManagement() {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  required
-                  disabled={isLoading}
+                  required={!isEditMode}
+                  disabled={isLoading || isEditMode}
+                  readOnly={isEditMode}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="usuario@servysalud.com"
                 />
+                {isEditMode && (
+                  <p className="text-xs text-gray-500 mt-1">El correo electrónico no se puede modificar</p>
+                )}
               </div>
 
-              {/* Contraseña */}
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Contraseña
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  required
-                  disabled={isLoading}
-                  minLength={6}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  placeholder="Mínimo 6 caracteres"
-                />
-              </div>
+              {/* Contraseña - Solo en modo creación */}
+              {!isEditMode && (
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                    Contraseña
+                  </label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    required
+                    disabled={isLoading}
+                    minLength={6}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+              )}
 
               {/* Rol */}
               <div>
@@ -679,10 +866,10 @@ export default function AccessManagement() {
                   {isLoading ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      <span>Guardando...</span>
+                      <span>{isEditMode ? 'Actualizando...' : 'Guardando...'}</span>
                     </>
                   ) : (
-                    <span>Guardar Usuario</span>
+                    <span>{isEditMode ? 'Actualizar Usuario' : 'Guardar Usuario'}</span>
                   )}
                 </button>
               </div>
