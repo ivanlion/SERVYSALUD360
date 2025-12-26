@@ -265,10 +265,16 @@ export default function Sidebar() {
               }
 
               // Lógica mejorada para determinar si un item está activo
-              const isActive = item.view === currentView && 
-                (currentView !== 'ACCESS_MANAGEMENT' || item.label === 'Administración');
+              // Para módulos normales (Inicio, Trabajo Modificado, Vigilancia, Seguridad)
+              const isNormalModuleActive = item.view === currentView && 
+                (currentView === 'DASHBOARD' || currentView === 'WORK_MODIFIED_DASHBOARD');
+              
+              // Para Administración
               const isAdminActive = item.label === 'Administración' && 
                 (currentView === 'ACCESS_MANAGEMENT' || pathname === '/dashboard/admin');
+              
+              // Determinar si el item está activo
+              const isActive = isNormalModuleActive || isAdminActive;
               
               return (
                 <React.Fragment key={item.label}>
@@ -290,14 +296,14 @@ export default function Sidebar() {
                       w-full flex items-center rounded-lg text-left transition-all duration-200
                       ${isSidebarCollapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3'}
                       ${
-                        isActive || (item.label === 'Administración' && currentView === 'ACCESS_MANAGEMENT')
+                        isActive
                           ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
                           : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
                       }
                     `}
                     title={isSidebarCollapsed ? item.label : undefined}
                   >
-                    <span className={isActive || (item.label === 'Administración' && currentView === 'ACCESS_MANAGEMENT') ? 'text-blue-600' : 'text-slate-400'}>
+                    <span className={isActive ? 'text-blue-600' : 'text-slate-400'}>
                       {item.icon}
                     </span>
                     {!isSidebarCollapsed && (
