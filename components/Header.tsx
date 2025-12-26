@@ -38,6 +38,7 @@ export default function Header() {
   const { currentView, setCurrentView, toggleSidebar } = useNavigation();
   const { toggleChat } = useChat();
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -48,20 +49,55 @@ export default function Header() {
     setCurrentView('NEW_CASE');
   };
 
-  // Obtener información del usuario autenticado
+  // Obtener información del usuario autenticado y su perfil
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      
+      // Obtener perfil del usuario desde la tabla profiles
+      if (user?.id) {
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
+          
+          if (!error && profile) {
+            setUserProfile(profile);
+          }
+        } catch (error) {
+          console.error('Error al obtener perfil del usuario:', error);
+        }
+      }
     };
     getUser();
 
     // Escuchar cambios en la autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         setUser(session.user);
+        
+        // Obtener perfil del usuario
+        if (session.user?.id) {
+          try {
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (!error && profile) {
+              setUserProfile(profile);
+            }
+          } catch (error) {
+            console.error('Error al obtener perfil del usuario:', error);
+          }
+        }
       } else {
         setUser(null);
+        setUserProfile(null);
       }
     });
 
@@ -103,35 +139,58 @@ export default function Header() {
 
   // Obtener nombre completo del usuario
   const getUserDisplayName = () => {
+    // Prioridad 1: full_name desde profiles
+    if (userProfile?.full_name) {
+      return userProfile.full_name;
+    }
+    
+    // Prioridad 2: full_name desde user_metadata
+    if (user?.user_metadata?.full_name) {
+      return user.user_metadata.full_name;
+    }
+    
+    // Prioridad 3: nombre desde user_metadata
+    if (user?.user_metadata?.nombre) {
+      return user.user_metadata.nombre;
+    }
+    
+    // Fallback: usar email si no hay nombre
     if (!user?.email) return 'Usuario';
     const emailParts = user.email.split('@')[0];
-    // Capitalizar primera letra de cada palabra si hay puntos o guiones
-    return emailParts
-      .split(/[._-]/)
-      .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ');
+    return emailParts.charAt(0).toUpperCase() + emailParts.slice(1);
+  };
+
+  // Obtener iniciales desde el nombre completo
+  const getInitialsFromName = (name: string): string => {
+    if (!name) return 'U';
+    
+    // Dividir el nombre en palabras
+    const words = name.trim().split(/\s+/);
+    
+    if (words.length >= 2) {
+      // Si hay al menos 2 palabras, usar primera letra de cada una
+      return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+    } else if (words.length === 1) {
+      // Si hay una sola palabra, usar las primeras 2 letras
+      const word = words[0];
+      const firstLetter = word.charAt(0).toUpperCase();
+      const secondLetter = word.length > 1 ? word.charAt(1).toUpperCase() : '';
+      return firstLetter + secondLetter;
+    }
+    
+    return 'U';
   };
 
   // Obtener iniciales para el avatar grande
   const getUserInitials = () => {
-    if (!user?.email) return 'U';
-    const emailParts = user.email.split('@')[0];
-    const parts = emailParts.split(/[._-]/);
-    if (parts.length >= 2) {
-      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
-    }
-    const firstLetter = emailParts.charAt(0).toUpperCase();
-    const secondLetter = emailParts.length > 1 ? emailParts.charAt(1).toUpperCase() : '';
-    return firstLetter + secondLetter;
+    const displayName = getUserDisplayName();
+    return getInitialsFromName(displayName);
   };
 
   // Obtener iniciales para el avatar pequeño
   const getSmallAvatarInitials = () => {
-    if (!user?.email) return 'U';
-    const emailParts = user.email.split('@')[0];
-    const firstLetter = emailParts.charAt(0).toUpperCase();
-    const secondLetter = emailParts.length > 1 ? emailParts.charAt(1).toUpperCase() : '';
-    return firstLetter + secondLetter;
+    const displayName = getUserDisplayName();
+    return getInitialsFromName(displayName);
   };
 
   return (

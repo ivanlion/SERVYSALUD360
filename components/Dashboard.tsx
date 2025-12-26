@@ -8,11 +8,12 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { CaseData } from '../types';
 import { Briefcase, Heart, Shield, Settings, Users } from 'lucide-react';
 import { useNavigation } from '../contexts/NavigationContext';
+import { supabase } from '../lib/supabase';
 
 interface DashboardProps {
   onEdit: (data: CaseData) => void;
@@ -22,15 +23,47 @@ interface DashboardProps {
 
 export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
   const { setCurrentView } = useNavigation();
+  const [userName, setUserName] = useState<string>('Usuario');
   
-  // Obtener nombre del usuario del email
-  const getUserName = () => {
-    if (!user?.email) return 'Usuario';
-    const emailParts = user.email.split('@')[0];
-    return emailParts.charAt(0).toUpperCase() + emailParts.slice(1);
-  };
+  // Obtener nombre completo del usuario desde el perfil
+  useEffect(() => {
+    const getUserName = async () => {
+      if (!user?.id) {
+        setUserName('Usuario');
+        return;
+      }
 
-  const userName = getUserName();
+      try {
+        // Intentar obtener el nombre desde la tabla profiles
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        if (!error && profile?.full_name) {
+          setUserName(profile.full_name);
+        } else {
+          // Si no hay perfil, intentar desde user_metadata
+          const fullName = user.user_metadata?.full_name || user.user_metadata?.nombre;
+          if (fullName) {
+            setUserName(fullName);
+          } else {
+            // Fallback: usar email si no hay nombre
+            const emailParts = user.email?.split('@')[0] || 'Usuario';
+            setUserName(emailParts.charAt(0).toUpperCase() + emailParts.slice(1));
+          }
+        }
+      } catch (error) {
+        console.error('Error al obtener nombre del usuario:', error);
+        // Fallback: usar email si hay error
+        const emailParts = user.email?.split('@')[0] || 'Usuario';
+        setUserName(emailParts.charAt(0).toUpperCase() + emailParts.slice(1));
+      }
+    };
+
+    getUserName();
+  }, [user]);
 
   // Tarjetas del dashboard
   const dashboardCards = [
