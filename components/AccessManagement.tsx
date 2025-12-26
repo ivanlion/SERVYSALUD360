@@ -9,12 +9,14 @@
 'use client';
 
 import React, { useState, useEffect, useOptimistic, useTransition } from 'react';
-import { Check, Plus, X, Loader2, AlertCircle, CheckCircle, Pencil, Trash2 } from 'lucide-react';
+import { Check, Plus, X, Loader2, AlertCircle, CheckCircle, Pencil, Trash2, Eye, Edit, Ban } from 'lucide-react';
 import { createUser } from '../app/actions/create-user';
 import { getUsers } from '../app/actions/get-users';
-import { togglePermission } from '../app/actions/toggle-permission';
+import { updatePermissionLevel } from '../app/actions/update-permission-level';
 import { updateUser, deleteUser } from '../app/actions/admin-actions';
 import { supabase } from '../lib/supabase';
+
+export type PermissionLevel = 'none' | 'read' | 'write';
 
 interface User {
   id: string;
@@ -22,10 +24,10 @@ interface User {
   email: string;
   role: string;
   permissions: {
-    trabajoModificado: boolean;
-    vigilanciaMedica: boolean;
-    seguimientoTrabajadores: boolean;
-    seguridadHigiene: boolean;
+    trabajoModificado: PermissionLevel;
+    vigilanciaMedica: PermissionLevel;
+    seguimientoTrabajadores: PermissionLevel;
+    seguridadHigiene: PermissionLevel;
   };
 }
 
@@ -80,14 +82,14 @@ export default function AccessManagement() {
   // useOptimistic para actualización instantánea de permisos
   const [optimisticUsers, setOptimisticUsers] = useOptimistic(
     users,
-    (currentUsers: User[], { userId, permissionKey, newValue }: { userId: string; permissionKey: keyof User['permissions']; newValue: boolean }) => {
+    (currentUsers: User[], { userId, permissionKey, newLevel }: { userId: string; permissionKey: keyof User['permissions']; newLevel: PermissionLevel }) => {
       return currentUsers.map(user =>
         user.id === userId
           ? {
               ...user,
               permissions: {
                 ...user.permissions,
-                [permissionKey]: newValue,
+                [permissionKey]: newLevel,
               },
             }
           : user
@@ -126,8 +128,18 @@ export default function AccessManagement() {
       try {
         const result = await getUsers();
         if (result.success) {
-          setUsers(result.users);
-          console.log(`✅ ${result.users.length} usuarios cargados desde Supabase`);
+          // Normalizar permisos a PermissionLevel
+          const normalizedUsers: User[] = result.users.map((user: any) => ({
+            ...user,
+            permissions: {
+              trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+              vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+              seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+              seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+            },
+          }));
+          setUsers(normalizedUsers);
+          console.log(`✅ ${normalizedUsers.length} usuarios cargados desde Supabase`);
         } else {
           console.error('❌ Error al cargar usuarios:', result.message);
           setUsers([]);
@@ -143,10 +155,11 @@ export default function AccessManagement() {
     loadUsers();
   }, []);
 
-  // Manejar cambio de permisos con actualización optimista y persistencia en BD
-  const handlePermissionChange = (
+  // Manejar cambio de nivel de permiso con actualización optimista y persistencia en BD
+  const handlePermissionLevelChange = (
     userId: string,
-    permissionKey: keyof User['permissions']
+    permissionKey: keyof User['permissions'],
+    newLevel: PermissionLevel
   ) => {
     // Encontrar el usuario actual
     const currentUser = users.find(u => u.id === userId);
@@ -154,16 +167,21 @@ export default function AccessManagement() {
 
     // Si es administrador, no permitir cambios
     if (currentUser.role === 'Administrador' || currentUser.role === 'Admin') {
+      setNotification({
+        type: 'error',
+        message: 'Los administradores tienen acceso total y sus permisos no pueden ser modificados.',
+      });
+      setTimeout(() => setNotification(null), 3000);
       return;
     }
 
-    const newValue = !currentUser.permissions[permissionKey];
     const updateKey = `${userId}-${permissionKey}`;
+    const previousLevel = currentUser.permissions[permissionKey];
 
     // Envolvemos TODO en startTransition para satisfacer a React 19
     startTransition(async () => {
       // A. Actualización optimista (Visual inmediata)
-      setOptimisticUsers({ userId, permissionKey, newValue });
+      setOptimisticUsers({ userId, permissionKey, newLevel });
 
       // Actualizar estado local también
       setUsers(prevUsers =>
@@ -173,7 +191,7 @@ export default function AccessManagement() {
                 ...user,
                 permissions: {
                   ...user.permissions,
-                  [permissionKey]: newValue,
+                  [permissionKey]: newLevel,
                 },
               }
             : user
@@ -185,7 +203,16 @@ export default function AccessManagement() {
 
       // B. Llamada real al servidor
       try {
-        const result = await togglePermission(userId, permissionKey, newValue);
+        // Mapear la clave del frontend a la clave de la base de datos
+        const moduleKeyMap: Record<keyof User['permissions'], string> = {
+          trabajoModificado: 'trabajoModificado',
+          vigilanciaMedica: 'vigilanciaMedica',
+          seguimientoTrabajadores: 'seguimientoTrabajadores',
+          seguridadHigiene: 'seguridadHigiene',
+        };
+
+        const dbModuleKey = moduleKeyMap[permissionKey] || permissionKey;
+        const result = await updatePermissionLevel(userId, dbModuleKey, newLevel);
 
         if (!result.success) {
           // Si falla, revertir el cambio optimista
@@ -196,19 +223,26 @@ export default function AccessManagement() {
                     ...user,
                     permissions: {
                       ...user.permissions,
-                      [permissionKey]: !newValue, // Revertir
+                      [permissionKey]: previousLevel, // Revertir
                     },
                   }
                 : user
             )
           );
-          setOptimisticUsers({ userId, permissionKey, newValue: !newValue });
+          setOptimisticUsers({ userId, permissionKey, newLevel: previousLevel });
           
           // Mostrar error
           setNotification({
             type: 'error',
             message: result.message || 'Error al actualizar el permiso',
           });
+        } else {
+          // Mostrar éxito
+          setNotification({
+            type: 'success',
+            message: result.message || 'Permiso actualizado exitosamente',
+          });
+          setTimeout(() => setNotification(null), 2000);
         }
       } catch (error: any) {
         console.error('Error guardando permiso:', error);
@@ -220,13 +254,13 @@ export default function AccessManagement() {
                   ...user,
                   permissions: {
                     ...user.permissions,
-                    [permissionKey]: !newValue,
+                    [permissionKey]: previousLevel,
                   },
                 }
               : user
           )
         );
-        setOptimisticUsers({ userId, permissionKey, newValue: !newValue });
+        setOptimisticUsers({ userId, permissionKey, newLevel: previousLevel });
         
         setNotification({
           type: 'error',
@@ -274,11 +308,20 @@ export default function AccessManagement() {
             message: result.message || 'Usuario actualizado exitosamente',
           });
 
-          // Recargar usuarios desde Supabase
-          const reloadResult = await getUsers();
-          if (reloadResult.success && reloadResult.users.length > 0) {
-            setUsers(reloadResult.users);
-          }
+                 // Recargar usuarios desde Supabase
+                 const reloadResult = await getUsers();
+                 if (reloadResult.success && reloadResult.users.length > 0) {
+                   const normalizedUsers: User[] = reloadResult.users.map((user: any) => ({
+                     ...user,
+                     permissions: {
+                       trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+                       vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+                       seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+                       seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+                     },
+                   }));
+                   setUsers(normalizedUsers);
+                 }
 
           // Cerrar el modal después de 1.5 segundos
           setTimeout(() => {
@@ -319,21 +362,30 @@ export default function AccessManagement() {
           // Recargar usuarios desde Supabase para obtener el usuario recién creado
           const reloadResult = await getUsers();
           if (reloadResult.success && reloadResult.users.length > 0) {
-            setUsers(reloadResult.users);
+            const normalizedUsers: User[] = reloadResult.users.map((user: any) => ({
+              ...user,
+              permissions: {
+                trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+                vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+                seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+                seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+              },
+            }));
+            setUsers(normalizedUsers);
           } else {
             // Si falla la recarga, agregar el usuario localmente como fallback
-            const newUser: User = {
-              id: result.userId || `temp-${Date.now()}`,
-              name: formData.nombre,
-              email: formData.email,
-              role: formData.rol,
-              permissions: {
-                trabajoModificado: false,
-                vigilanciaMedica: false,
-                seguimientoTrabajadores: false,
-                seguridadHigiene: false,
-              },
-            };
+                 const newUser: User = {
+                   id: result.userId || `temp-${Date.now()}`,
+                   name: formData.nombre,
+                   email: formData.email,
+                   role: formData.rol,
+                   permissions: {
+                     trabajoModificado: 'none',
+                     vigilanciaMedica: 'none',
+                     seguimientoTrabajadores: 'none',
+                     seguridadHigiene: 'none',
+                   },
+                 };
             setUsers(prevUsers => [...prevUsers, newUser]);
           }
 
@@ -424,11 +476,20 @@ export default function AccessManagement() {
           message: result.message || 'Usuario eliminado exitosamente',
         });
 
-        // Recargar usuarios desde Supabase
-        const reloadResult = await getUsers();
-        if (reloadResult.success && reloadResult.users.length > 0) {
-          setUsers(reloadResult.users);
-        } else {
+                 // Recargar usuarios desde Supabase
+                 const reloadResult = await getUsers();
+                 if (reloadResult.success && reloadResult.users.length > 0) {
+                   const normalizedUsers: User[] = reloadResult.users.map((user: any) => ({
+                     ...user,
+                     permissions: {
+                       trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+                       vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+                       seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+                       seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+                     },
+                   }));
+                   setUsers(normalizedUsers);
+                 } else {
           // Si falla la recarga, eliminar localmente
           setUsers(prevUsers => prevUsers.filter(u => u.id !== user.id));
         }
@@ -539,9 +600,54 @@ export default function AccessManagement() {
                 // Verificar si el usuario es administrador
                 const isAdmin = user.role === 'Administrador' || user.role === 'Admin';
                 
-                // Para administradores, todos los permisos son true y deshabilitados
-                const getPermissionValue = (key: keyof User['permissions']) => {
-                  return isAdmin ? true : user.permissions[key];
+                // Para administradores, todos los permisos son 'write' y deshabilitados
+                const getPermissionLevel = (key: keyof User['permissions']): PermissionLevel => {
+                  return isAdmin ? 'write' : user.permissions[key];
+                };
+
+                // Función helper para renderizar el Select de permisos
+                const renderPermissionSelect = (
+                  permissionKey: keyof User['permissions'],
+                  label: string
+                ) => {
+                  const currentLevel = getPermissionLevel(permissionKey);
+                  const isUpdating = updatingPermissions.has(`${user.id}-${permissionKey}`);
+
+                  return (
+                    <div className="flex items-center justify-center">
+                      <select
+                        value={currentLevel}
+                        onChange={(e) => {
+                          const newLevel = e.target.value as PermissionLevel;
+                          handlePermissionLevelChange(user.id, permissionKey, newLevel);
+                        }}
+                        disabled={isAdmin || isUpdating}
+                        className={`
+                          text-xs font-medium px-3 py-1.5 rounded-lg border transition-all
+                          ${isAdmin 
+                            ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200' 
+                            : isUpdating
+                            ? 'bg-gray-50 text-gray-400 cursor-wait border-gray-200'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer'
+                          }
+                        `}
+                        title={isAdmin ? 'Los administradores tienen acceso total' : `Cambiar nivel de acceso para ${label}`}
+                      >
+                        <option value="none">
+                          🔴 Sin Acceso
+                        </option>
+                        <option value="read">
+                          👀 Solo Lectura
+                        </option>
+                        <option value="write">
+                          ✏️ Escritura
+                        </option>
+                      </select>
+                      {isUpdating && (
+                        <Loader2 size={14} className="animate-spin text-indigo-600 ml-2" />
+                      )}
+                    </div>
+                  );
                 };
 
                 return (
@@ -568,135 +674,24 @@ export default function AccessManagement() {
                     </div>
                   </td>
 
-                  {/* Checkbox Trabajo Modificado */}
+                  {/* Select Trabajo Modificado */}
                   <td className="px-6 py-4 text-center">
-                    <label className={`flex items-center justify-center ${isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                      <input
-                        type="checkbox"
-                        checked={getPermissionValue('trabajoModificado')}
-                        onChange={() =>
-                          handlePermissionChange(user.id, 'trabajoModificado')
-                        }
-                        disabled={isAdmin || updatingPermissions.has(`${user.id}-trabajoModificado`)}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`
-                          w-5 h-5 rounded border-2 flex items-center justify-center transition-all
-                          ${
-                            getPermissionValue('trabajoModificado')
-                              ? isAdmin 
-                                ? 'bg-gray-400 border-gray-400' 
-                                : 'bg-gray-900 border-gray-900'
-                              : 'bg-white border-gray-300'
-                          }
-                          ${updatingPermissions.has(`${user.id}-trabajoModificado`) ? 'opacity-50' : ''}
-                        `}
-                      >
-                        {getPermissionValue('trabajoModificado') && (
-                          <Check size={14} className="text-white" />
-                        )}
-                      </div>
-                    </label>
+                    {renderPermissionSelect('trabajoModificado', 'Trabajo Modificado')}
                   </td>
 
-                  {/* Checkbox Vigilancia Médica */}
+                  {/* Select Vigilancia Médica */}
                   <td className="px-6 py-4 text-center">
-                    <label className={`flex items-center justify-center ${isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                      <input
-                        type="checkbox"
-                        checked={getPermissionValue('vigilanciaMedica')}
-                        onChange={() =>
-                          handlePermissionChange(user.id, 'vigilanciaMedica')
-                        }
-                        disabled={isAdmin || updatingPermissions.has(`${user.id}-vigilanciaMedica`)}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`
-                          w-5 h-5 rounded border-2 flex items-center justify-center transition-all
-                          ${
-                            getPermissionValue('vigilanciaMedica')
-                              ? isAdmin 
-                                ? 'bg-gray-400 border-gray-400' 
-                                : 'bg-gray-900 border-gray-900'
-                              : 'bg-white border-gray-300'
-                          }
-                          ${updatingPermissions.has(`${user.id}-vigilanciaMedica`) ? 'opacity-50' : ''}
-                        `}
-                      >
-                        {getPermissionValue('vigilanciaMedica') && (
-                          <Check size={14} className="text-white" />
-                        )}
-                      </div>
-                    </label>
+                    {renderPermissionSelect('vigilanciaMedica', 'Vigilancia Médica')}
                   </td>
 
-                  {/* Checkbox Seguimiento de Trabajadores */}
+                  {/* Select Seguimiento de Trabajadores */}
                   <td className="px-6 py-4 text-center">
-                    <label className={`flex items-center justify-center ${isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                      <input
-                        type="checkbox"
-                        checked={getPermissionValue('seguimientoTrabajadores')}
-                        onChange={() =>
-                          handlePermissionChange(
-                            user.id,
-                            'seguimientoTrabajadores'
-                          )
-                        }
-                        disabled={isAdmin || updatingPermissions.has(`${user.id}-seguimientoTrabajadores`)}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`
-                          w-5 h-5 rounded border-2 flex items-center justify-center transition-all
-                          ${
-                            getPermissionValue('seguimientoTrabajadores')
-                              ? isAdmin 
-                                ? 'bg-gray-400 border-gray-400' 
-                                : 'bg-gray-900 border-gray-900'
-                              : 'bg-white border-gray-300'
-                          }
-                          ${updatingPermissions.has(`${user.id}-seguimientoTrabajadores`) ? 'opacity-50' : ''}
-                        `}
-                      >
-                        {getPermissionValue('seguimientoTrabajadores') && (
-                          <Check size={14} className="text-white" />
-                        )}
-                      </div>
-                    </label>
+                    {renderPermissionSelect('seguimientoTrabajadores', 'Seguimiento de Trabajadores')}
                   </td>
 
-                  {/* Checkbox Seguridad e Higiene */}
+                  {/* Select Seguridad e Higiene */}
                   <td className="px-6 py-4 text-center">
-                    <label className={`flex items-center justify-center ${isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                      <input
-                        type="checkbox"
-                        checked={getPermissionValue('seguridadHigiene')}
-                        onChange={() =>
-                          handlePermissionChange(user.id, 'seguridadHigiene')
-                        }
-                        disabled={isAdmin || updatingPermissions.has(`${user.id}-seguridadHigiene`)}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`
-                          w-5 h-5 rounded border-2 flex items-center justify-center transition-all
-                          ${
-                            getPermissionValue('seguridadHigiene')
-                              ? isAdmin 
-                                ? 'bg-gray-400 border-gray-400' 
-                                : 'bg-gray-900 border-gray-900'
-                              : 'bg-white border-gray-300'
-                          }
-                          ${updatingPermissions.has(`${user.id}-seguridadHigiene`) ? 'opacity-50' : ''}
-                        `}
-                      >
-                        {getPermissionValue('seguridadHigiene') && (
-                          <Check size={14} className="text-white" />
-                        )}
-                      </div>
-                    </label>
+                    {renderPermissionSelect('seguridadHigiene', 'Seguridad e Higiene')}
                   </td>
 
                   {/* Columna Acciones */}

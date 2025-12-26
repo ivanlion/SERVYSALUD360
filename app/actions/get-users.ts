@@ -61,29 +61,56 @@ export async function getUsers() {
     // Si la tabla profiles existe y tiene datos, usarlos
     if (!profilesError && profilesData && profilesData.length > 0) {
       const users = profilesData.map((profile: any) => {
-        // Manejar permissions como JSON o campos individuales
-        let permissions = {
-          trabajoModificado: false,
-          vigilanciaMedica: false,
-          seguimientoTrabajadores: false,
-          seguridadHigiene: false,
+        // Manejar permissions como JSON con niveles de acceso (none, read, write)
+        // Compatibilidad: Si viene como boolean, convertir a nivel de acceso
+        type PermissionLevel = 'none' | 'read' | 'write';
+        
+        const normalizePermission = (value: any): PermissionLevel => {
+          if (typeof value === 'boolean') {
+            // Compatibilidad con sistema anterior: true -> 'write', false -> 'none'
+            return value ? 'write' : 'none';
+          }
+          if (typeof value === 'string' && ['none', 'read', 'write'].includes(value)) {
+            return value as PermissionLevel;
+          }
+          return 'none'; // Valor por defecto
+        };
+
+        let permissions: {
+          trabajoModificado: PermissionLevel;
+          vigilanciaMedica: PermissionLevel;
+          seguimientoTrabajadores: PermissionLevel;
+          seguridadHigiene: PermissionLevel;
+        } = {
+          trabajoModificado: 'none',
+          vigilanciaMedica: 'none',
+          seguimientoTrabajadores: 'none',
+          seguridadHigiene: 'none',
         };
 
         // Si permissions es un objeto JSON
         if (profile.permissions && typeof profile.permissions === 'object') {
           permissions = {
-            trabajoModificado: profile.permissions.trabajo_modificado || profile.permissions.trabajoModificado || false,
-            vigilanciaMedica: profile.permissions.vigilancia_medica || profile.permissions.vigilanciaMedica || false,
-            seguimientoTrabajadores: profile.permissions.seguimiento_trabajadores || profile.permissions.seguimientoTrabajadores || false,
-            seguridadHigiene: profile.permissions.seguridad_higiene || profile.permissions.seguridadHigiene || false,
+            trabajoModificado: normalizePermission(
+              profile.permissions.trabajo_modificado || profile.permissions.trabajoModificado
+            ),
+            vigilanciaMedica: normalizePermission(
+              profile.permissions.vigilancia_medica || profile.permissions.vigilanciaMedica
+            ),
+            seguimientoTrabajadores: normalizePermission(
+              profile.permissions.seguimiento_trabajadores || profile.permissions.seguimientoTrabajadores
+            ),
+            seguridadHigiene: normalizePermission(
+              profile.permissions.seguridad_higiene || profile.permissions.seguridadHigiene
+            ),
           };
         } else {
           // Si permissions viene como campos individuales
           permissions = {
-            trabajoModificado: profile.trabajo_modificado || false,
-            vigilanciaMedica: profile.vigilancia_medica || false,
-            seguimientoTrabajadores: profile.seguimiento_trabajadores || false,
-            seguridadHigiene: profile.seguridad_higiene || false,
+            trabajoModificado: normalizePermission(profile.trabajo_modificado),
+            vigilanciaMedica: normalizePermission(profile.vigilancia_medica),
+            seguimientoTrabajadores: normalizePermission(profile.seguimiento_trabajadores),
+            seguridadHigiene: normalizePermission(profile.seguridad_higiene),
           };
         }
 
@@ -130,10 +157,14 @@ export async function getUsers() {
           email: user.email || '',
           role: user.user_metadata?.rol || user.user_metadata?.role || 'Usuario',
           permissions: {
-            trabajoModificado: user.user_metadata?.trabajo_modificado || false,
-            vigilanciaMedica: user.user_metadata?.vigilancia_medica || false,
-            seguimientoTrabajadores: user.user_metadata?.seguimiento_trabajadores || false,
-            seguridadHigiene: user.user_metadata?.seguridad_higiene || false,
+            trabajoModificado: (user.user_metadata?.trabajo_modificado === true || user.user_metadata?.trabajo_modificado === 'write') ? 'write' : 
+                             (user.user_metadata?.trabajo_modificado === 'read') ? 'read' : 'none',
+            vigilanciaMedica: (user.user_metadata?.vigilancia_medica === true || user.user_metadata?.vigilancia_medica === 'write') ? 'write' : 
+                             (user.user_metadata?.vigilancia_medica === 'read') ? 'read' : 'none',
+            seguimientoTrabajadores: (user.user_metadata?.seguimiento_trabajadores === true || user.user_metadata?.seguimiento_trabajadores === 'write') ? 'write' : 
+                                    (user.user_metadata?.seguimiento_trabajadores === 'read') ? 'read' : 'none',
+            seguridadHigiene: (user.user_metadata?.seguridad_higiene === true || user.user_metadata?.seguridad_higiene === 'write') ? 'write' : 
+                             (user.user_metadata?.seguridad_higiene === 'read') ? 'read' : 'none',
           },
         }));
 

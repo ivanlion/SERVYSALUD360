@@ -82,23 +82,58 @@ export default function Sidebar() {
   const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userPermissions, setUserPermissions] = useState<{
+    trabajoModificado?: 'none' | 'read' | 'write';
+    vigilanciaMedica?: 'none' | 'read' | 'write';
+    seguimientoTrabajadores?: 'none' | 'read' | 'write';
+    seguridadHigiene?: 'none' | 'read' | 'write';
+  }>({});
   const { currentView, setCurrentView, isSidebarCollapsed } = useNavigation();
 
-  // Obtener el rol del usuario actual
+  // Obtener el rol y permisos del usuario actual
   useEffect(() => {
-    const getUserRole = async () => {
+    const getUserRoleAndPermissions = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // Intentar obtener el rol desde la tabla profiles
+          // Intentar obtener el rol y permisos desde la tabla profiles
           const { data: profile } = await supabase
             .from('profiles')
-            .select('rol, role')
+            .select('rol, role, permissions')
             .eq('id', user.id)
             .single();
           
           if (profile) {
             setUserRole(profile.rol || profile.role || null);
+            
+            // Obtener permisos del JSONB
+            if (profile.permissions && typeof profile.permissions === 'object') {
+              // Normalizar permisos (pueden venir como boolean o string)
+              const normalizePermission = (value: any): 'none' | 'read' | 'write' => {
+                if (typeof value === 'boolean') {
+                  return value ? 'write' : 'none';
+                }
+                if (typeof value === 'string' && ['none', 'read', 'write'].includes(value)) {
+                  return value as 'none' | 'read' | 'write';
+                }
+                return 'none';
+              };
+
+              setUserPermissions({
+                trabajoModificado: normalizePermission(
+                  profile.permissions.trabajo_modificado || profile.permissions.trabajoModificado
+                ),
+                vigilanciaMedica: normalizePermission(
+                  profile.permissions.vigilancia_medica || profile.permissions.vigilanciaMedica
+                ),
+                seguimientoTrabajadores: normalizePermission(
+                  profile.permissions.seguimiento_trabajadores || profile.permissions.seguimientoTrabajadores
+                ),
+                seguridadHigiene: normalizePermission(
+                  profile.permissions.seguridad_higiene || profile.permissions.seguridadHigiene
+                ),
+              });
+            }
           } else {
             // Si no hay perfil, obtener desde user_metadata
             const role = user.user_metadata?.rol || user.user_metadata?.role || null;
@@ -106,15 +141,22 @@ export default function Sidebar() {
           }
         }
       } catch (error) {
-        console.error('Error al obtener rol del usuario:', error);
+        console.error('Error al obtener rol y permisos del usuario:', error);
       }
     };
 
-    getUserRole();
+    getUserRoleAndPermissions();
   }, []);
 
   // Verificar si el usuario es administrador
   const isAdmin = userRole === 'Administrador' || userRole === 'Admin';
+
+  // Función helper para verificar si el usuario tiene acceso a un módulo
+  const hasModuleAccess = (moduleKey: keyof typeof userPermissions): boolean => {
+    if (isAdmin) return true; // Administradores tienen acceso a todo
+    const permission = userPermissions[moduleKey];
+    return permission !== undefined && permission !== 'none';
+  };
 
   // No mostrar sidebar en la página de login
   if (pathname === '/login') {
