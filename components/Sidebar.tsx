@@ -298,16 +298,18 @@ export default function Sidebar() {
                       ${
                         isActive
                           ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
-                          : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
+                          : 'text-gray-600 hover:bg-gray-50'
                       }
                     `}
                     title={isSidebarCollapsed ? item.label : undefined}
                   >
-                    <span className={isActive ? 'text-blue-600' : 'text-slate-400'}>
+                    <span className={isActive ? 'text-blue-600' : 'text-gray-500'}>
                       {item.icon}
                     </span>
                     {!isSidebarCollapsed && (
-                      <span className="text-sm">{item.label}</span>
+                      <span className={`text-sm ${isActive ? 'text-blue-700' : 'text-gray-600'}`}>
+                        {item.label}
+                      </span>
                     )}
                   </button>
                   
@@ -332,14 +334,16 @@ export default function Sidebar() {
                               ${
                                 isSubActive
                                   ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
-                                  : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
+                                  : 'text-gray-600 hover:bg-gray-50'
                               }
                             `}
                           >
-                            <span className={isSubActive ? 'text-blue-600' : 'text-slate-400'}>
+                            <span className={isSubActive ? 'text-blue-600' : 'text-gray-500'}>
                               {subItem.icon}
                             </span>
-                            <span className="text-sm">{subItem.label}</span>
+                            <span className={`text-sm ${isSubActive ? 'text-blue-700' : 'text-gray-600'}`}>
+                              {subItem.label}
+                            </span>
                           </Link>
                         );
                       })}
