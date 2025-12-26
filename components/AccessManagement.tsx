@@ -79,26 +79,14 @@ export default function AccessManagement() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState<boolean>(true);
   
-  // useTransition para envolver actualizaciones optimistas
+  // Estado para cambios pendientes (no guardados)
+  const [pendingChanges, setPendingChanges] = useState<Map<string, { userId: string; permissionKey: keyof User['permissions']; newLevel: PermissionLevel; previousLevel: PermissionLevel }>>(new Map());
+  
+  // Estado para usuarios locales (con cambios pendientes)
+  const [localUsers, setLocalUsers] = useState<User[]>([]);
+  
+  // useTransition para envolver actualizaciones
   const [isPending, startTransition] = useTransition();
-
-  // useOptimistic para actualización instantánea de permisos
-  const [optimisticUsers, setOptimisticUsers] = useOptimistic(
-    users,
-    (currentUsers: User[], { userId, permissionKey, newLevel }: { userId: string; permissionKey: keyof User['permissions']; newLevel: PermissionLevel }) => {
-      return currentUsers.map(user =>
-        user.id === userId
-          ? {
-              ...user,
-              permissions: {
-                ...user.permissions,
-                [permissionKey]: newLevel,
-              },
-            }
-          : user
-      );
-    }
-  );
 
   // Estados del formulario
   const [formData, setFormData] = useState({
@@ -199,10 +187,12 @@ export default function AccessManagement() {
             },
           }));
           setUsers(normalizedUsers);
+          setLocalUsers(normalizedUsers); // Inicializar usuarios locales
           console.log(`✅ ${normalizedUsers.length} usuarios cargados desde Supabase`);
         } else {
           console.error('❌ Error al cargar usuarios:', result.message);
           setUsers([]);
+          setLocalUsers([]);
         }
       } catch (error: any) {
         console.error('❌ Error inesperado al cargar usuarios:', error);
@@ -215,18 +205,28 @@ export default function AccessManagement() {
     loadUsers();
   }, []);
 
-  // Manejar cambio de nivel de permiso con actualización optimista y persistencia en BD
+  // Manejar cambio de nivel de permiso (solo actualiza estado local, no guarda en BD)
   const handlePermissionLevelChange = (
     userId: string,
     permissionKey: keyof User['permissions'],
     newLevel: PermissionLevel
   ) => {
     // Encontrar el usuario actual
-    const currentUser = users.find(u => u.id === userId);
+    const currentUser = localUsers.find(u => u.id === userId);
     if (!currentUser) return;
 
-    // Si es administrador, no permitir cambios
-    if (currentUser.role === 'Administrador' || currentUser.role === 'Admin') {
+    // Si es Super Admin, no permitir cambios
+    if (isSuperAdmin(currentUser.email)) {
+      setNotification({
+        type: 'error',
+        message: 'El Super Administrador tiene acceso total garantizado y sus permisos no pueden ser modificados.',
+      });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    // Si es administrador regular, no permitir cambios
+    if (isAdminUser(currentUser.email, currentUser.role)) {
       setNotification({
         type: 'error',
         message: 'Los administradores tienen acceso total y sus permisos no pueden ser modificados.',
@@ -235,106 +235,150 @@ export default function AccessManagement() {
       return;
     }
 
-    const updateKey = `${userId}-${permissionKey}`;
     const previousLevel = currentUser.permissions[permissionKey];
+    const changeKey = `${userId}-${permissionKey}`;
 
-    // Envolvemos TODO en startTransition para satisfacer a React 19
+    // Si el nuevo nivel es igual al original, eliminar de cambios pendientes
+    const originalUser = users.find(u => u.id === userId);
+    const originalLevel = originalUser?.permissions[permissionKey] || previousLevel;
+
+    if (newLevel === originalLevel) {
+      // Eliminar de cambios pendientes si existe
+      setPendingChanges(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(changeKey);
+        return newMap;
+      });
+    } else {
+      // Agregar a cambios pendientes
+      setPendingChanges(prev => {
+        const newMap = new Map(prev);
+        newMap.set(changeKey, { userId, permissionKey, newLevel, previousLevel });
+        return newMap;
+      });
+    }
+
+    // Actualizar estado local (visual inmediata)
+    setLocalUsers(prevUsers =>
+      prevUsers.map(user =>
+        user.id === userId
+          ? {
+              ...user,
+              permissions: {
+                ...user.permissions,
+                [permissionKey]: newLevel,
+              },
+            }
+          : user
+      )
+    );
+  };
+
+  // Guardar todos los cambios pendientes
+  const handleSaveChanges = async () => {
+    if (pendingChanges.size === 0) {
+      setNotification({
+        type: 'error',
+        message: 'No hay cambios pendientes para guardar',
+      });
+      setTimeout(() => setNotification(null), 2000);
+      return;
+    }
+
+    setIsLoading(true);
+    setNotification(null);
+
+    const changesArray = Array.from(pendingChanges.values());
+    const errors: string[] = [];
+    const successes: string[] = [];
+
     startTransition(async () => {
-      // A. Actualización optimista (Visual inmediata)
-      setOptimisticUsers({ userId, permissionKey, newLevel });
+      // Mapear la clave del frontend a la clave de la base de datos
+      const moduleKeyMap: Record<keyof User['permissions'], string> = {
+        trabajoModificado: 'trabajoModificado',
+        vigilanciaMedica: 'vigilanciaMedica',
+        seguimientoTrabajadores: 'seguimientoTrabajadores',
+        seguridadHigiene: 'seguridadHigiene',
+      };
 
-      // Actualizar estado local también
-      setUsers(prevUsers =>
-        prevUsers.map(user =>
-          user.id === userId
-            ? {
-                ...user,
-                permissions: {
-                  ...user.permissions,
-                  [permissionKey]: newLevel,
-                },
-              }
-            : user
-        )
-      );
+      // Guardar cada cambio
+      for (const change of changesArray) {
+        const updateKey = `${change.userId}-${change.permissionKey}`;
+        setUpdatingPermissions(prev => new Set(prev).add(updateKey));
 
-      // Marcar como actualizando
-      setUpdatingPermissions(prev => new Set(prev).add(updateKey));
+        try {
+          const dbModuleKey = moduleKeyMap[change.permissionKey] || change.permissionKey;
+          const result = await updatePermissionLevel(change.userId, dbModuleKey, change.newLevel);
 
-      // B. Llamada real al servidor
-      try {
-        // Mapear la clave del frontend a la clave de la base de datos
-        const moduleKeyMap: Record<keyof User['permissions'], string> = {
-          trabajoModificado: 'trabajoModificado',
-          vigilanciaMedica: 'vigilanciaMedica',
-          seguimientoTrabajadores: 'seguimientoTrabajadores',
-          seguridadHigiene: 'seguridadHigiene',
-        };
-
-        const dbModuleKey = moduleKeyMap[permissionKey] || permissionKey;
-        const result = await updatePermissionLevel(userId, dbModuleKey, newLevel);
-
-        if (!result.success) {
-          // Si falla, revertir el cambio optimista
-          setUsers(prevUsers =>
-            prevUsers.map(user =>
-              user.id === userId
-                ? {
-                    ...user,
-                    permissions: {
-                      ...user.permissions,
-                      [permissionKey]: previousLevel, // Revertir
-                    },
-                  }
-                : user
-            )
-          );
-          setOptimisticUsers({ userId, permissionKey, newLevel: previousLevel });
-          
-          // Mostrar error
-          setNotification({
-            type: 'error',
-            message: result.message || 'Error al actualizar el permiso',
+          if (!result.success) {
+            errors.push(`${change.permissionKey}: ${result.message || 'Error desconocido'}`);
+          } else {
+            successes.push(`${change.permissionKey}`);
+          }
+        } catch (error: any) {
+          console.error('Error guardando permiso:', error);
+          errors.push(`${change.permissionKey}: ${error.message || 'Error inesperado'}`);
+        } finally {
+          setUpdatingPermissions(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(updateKey);
+            return newSet;
           });
-        } else {
-          // Mostrar éxito
-          setNotification({
-            type: 'success',
-            message: result.message || 'Permiso actualizado exitosamente',
-          });
-          setTimeout(() => setNotification(null), 2000);
         }
-      } catch (error: any) {
-        console.error('Error guardando permiso:', error);
-        // Revertir cambio optimista
-        setUsers(prevUsers =>
-          prevUsers.map(user =>
-            user.id === userId
-              ? {
-                  ...user,
-                  permissions: {
-                    ...user.permissions,
-                    [permissionKey]: previousLevel,
-                  },
-                }
-              : user
-          )
-        );
-        setOptimisticUsers({ userId, permissionKey, newLevel: previousLevel });
+      }
+
+      // Mostrar resultado
+      if (errors.length === 0) {
+        setNotification({
+          type: 'success',
+          message: `✅ ${successes.length} permiso(s) actualizado(s) exitosamente`,
+        });
         
+        // Sincronizar usuarios locales con los usuarios originales (actualizados)
+        const reloadResult = await getUsers();
+        if (reloadResult.success && reloadResult.users.length > 0) {
+          const normalizedUsers: User[] = reloadResult.users.map(user => ({
+            ...user,
+            permissions: {
+              trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+              vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+              seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+              seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+            },
+          }));
+          setUsers(normalizedUsers);
+          setLocalUsers(normalizedUsers);
+        }
+        
+        // Limpiar cambios pendientes
+        setPendingChanges(new Map());
+        
+        setTimeout(() => setNotification(null), 3000);
+      } else {
         setNotification({
           type: 'error',
-          message: error.message || 'Error inesperado al actualizar el permiso',
+          message: `❌ ${errors.length} error(es) al guardar. ${errors.join('; ')}`,
         });
-      } finally {
-        // Quitar de la lista de actualizando
-        setUpdatingPermissions(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(updateKey);
-          return newSet;
-        });
+        setTimeout(() => setNotification(null), 5000);
       }
+
+      setIsLoading(false);
     });
+  };
+
+  // Cancelar cambios pendientes
+  const handleCancelChanges = () => {
+    if (pendingChanges.size === 0) return;
+    
+    // Restaurar usuarios locales a los valores originales
+    setLocalUsers([...users]);
+    setPendingChanges(new Map());
+    
+    setNotification({
+      type: 'success',
+      message: 'Cambios cancelados. Se restauraron los valores originales.',
+    });
+    setTimeout(() => setNotification(null), 2000);
   };
 
   // Manejar cambio en los campos del formulario
@@ -381,6 +425,7 @@ export default function AccessManagement() {
                      },
                    }));
                    setUsers(normalizedUsers);
+                   setLocalUsers(normalizedUsers);
                  }
 
           // Cerrar el modal después de 1.5 segundos
@@ -419,20 +464,21 @@ export default function AccessManagement() {
             message: result.message || 'Usuario creado exitosamente',
           });
 
-          // Recargar usuarios desde Supabase para obtener el usuario recién creado
-          const reloadResult = await getUsers();
-          if (reloadResult.success && reloadResult.users.length > 0) {
-            const normalizedUsers: User[] = reloadResult.users.map((user: any) => ({
-              ...user,
-              permissions: {
-                trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
-                vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
-                seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
-                seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
-              },
-            }));
-            setUsers(normalizedUsers);
-          } else {
+                 // Recargar usuarios desde Supabase para obtener el usuario recién creado
+                 const reloadResult = await getUsers();
+                 if (reloadResult.success && reloadResult.users.length > 0) {
+                   const normalizedUsers: User[] = reloadResult.users.map((user: any) => ({
+                     ...user,
+                     permissions: {
+                       trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+                       vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+                       seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+                       seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+                     },
+                   }));
+                   setUsers(normalizedUsers);
+                   setLocalUsers(normalizedUsers);
+                 } else {
             // Si falla la recarga, agregar el usuario localmente como fallback
                  const newUser: User = {
                    id: result.userId || `temp-${Date.now()}`,
@@ -549,9 +595,11 @@ export default function AccessManagement() {
                      },
                    }));
                    setUsers(normalizedUsers);
+                   setLocalUsers(normalizedUsers);
                  } else {
           // Si falla la recarga, eliminar localmente
           setUsers(prevUsers => prevUsers.filter(u => u.id !== user.id));
+          setLocalUsers(prevUsers => prevUsers.filter(u => u.id !== user.id));
         }
 
         // Limpiar notificación después de 2 segundos
@@ -624,23 +672,68 @@ export default function AccessManagement() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Encabezado */}
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Gestión de Accesos
-          </h1>
-          <p className="text-gray-500 text-base">
-            Configure los módulos visibles para cada usuario del sistema.
-          </p>
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Gestión de Accesos
+            </h1>
+            <p className="text-gray-500 text-base">
+              Configure los módulos visibles para cada usuario del sistema.
+            </p>
+          </div>
+          {/* Botón Agregar Usuario */}
+          <button
+            onClick={handleCreateUser}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            <Plus size={18} />
+            <span>Agregar Usuario</span>
+          </button>
         </div>
-        {/* Botón Agregar Usuario */}
-        <button
-          onClick={handleCreateUser}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
-        >
-          <Plus size={18} />
-          <span>Agregar Usuario</span>
-        </button>
+        
+        {/* Barra de acciones para cambios pendientes */}
+        {pendingChanges.size > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="text-yellow-600" size={20} />
+              <div>
+                <p className="text-sm font-medium text-yellow-800">
+                  Tienes {pendingChanges.size} cambio(s) pendiente(s) sin guardar
+                </p>
+                <p className="text-xs text-yellow-600 mt-0.5">
+                  Haz clic en "Guardar Cambios" para aplicar las modificaciones
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCancelChanges}
+                disabled={isLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveChanges}
+                disabled={isLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    Guardar Cambios
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tabla de Permisos */}
@@ -686,9 +779,9 @@ export default function AccessManagement() {
               </tr>
             </thead>
 
-            {/* Cuerpo de Tabla */}
-            <tbody className="divide-y divide-gray-100">
-              {optimisticUsers.map((user) => {
+              {/* Cuerpo de Tabla */}
+              <tbody className="divide-y divide-gray-100">
+                {localUsers.map((user) => {
                 // Verificar si el usuario es administrador (incluye Super Admin)
                 const isAdmin = isAdminUser(user.email, user.role);
                 
@@ -704,9 +797,14 @@ export default function AccessManagement() {
                 ) => {
                   const currentLevel = getPermissionLevel(permissionKey);
                   const isUpdating = updatingPermissions.has(`${user.id}-${permissionKey}`);
+                  const changeKey = `${user.id}-${permissionKey}`;
+                  const hasPendingChange = pendingChanges.has(changeKey);
+                  const originalUser = users.find(u => u.id === user.id);
+                  const originalLevel = originalUser?.permissions[permissionKey] || currentLevel;
+                  const isChanged = currentLevel !== originalLevel;
 
                   return (
-                    <div className="flex items-center justify-center">
+                    <div className="flex items-center justify-center gap-2">
                       <select
                         value={currentLevel}
                         onChange={(e) => {
@@ -720,6 +818,8 @@ export default function AccessManagement() {
                             ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200' 
                             : isUpdating
                             ? 'bg-gray-50 text-gray-400 cursor-wait border-gray-200'
+                            : isChanged
+                            ? 'bg-yellow-50 text-yellow-800 border-yellow-300 hover:border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 cursor-pointer'
                             : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer'
                           }
                         `}
@@ -728,6 +828,8 @@ export default function AccessManagement() {
                             ? isSuperAdmin(user.email) 
                               ? 'Super Administrador: Acceso total garantizado' 
                               : 'Los administradores tienen acceso total'
+                            : isChanged
+                            ? `Cambio pendiente: ${label} (${originalLevel} → ${currentLevel})`
                             : `Cambiar nivel de acceso para ${label}`
                         }
                       >
@@ -742,7 +844,12 @@ export default function AccessManagement() {
                         </option>
                       </select>
                       {isUpdating && (
-                        <Loader2 size={14} className="animate-spin text-indigo-600 ml-2" />
+                        <Loader2 size={14} className="animate-spin text-indigo-600" />
+                      )}
+                      {isChanged && !isUpdating && (
+                        <span className="text-xs text-yellow-600 font-medium" title="Cambio pendiente">
+                          ●
+                        </span>
                       )}
                     </div>
                   );
