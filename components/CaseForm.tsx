@@ -380,6 +380,7 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
                 readOnly={isCurrentLocked}
                 hideFunctionalCapacity={true}
                 showCapacitiesMatrix={true}
+                showRequirementsMatrix={true}
                 jobTitle={formData.puesto}
                 hoursPerDay={formData.jornadaLaboral}
                 gender={formData.sexo}
