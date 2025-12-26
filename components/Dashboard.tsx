@@ -78,28 +78,30 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
   ];
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500">
       
-      {/* Saludo de Bienvenida */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-sm p-6 sm:p-8 text-white">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+      {/* Saludo de Bienvenida - Estilo minimalista */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">
           Bienvenido, {userName}
         </h1>
-        <p className="text-blue-100 text-sm sm:text-base">
+        <p className="text-gray-500 text-base">
           Sistema de Gestión de Salud Ocupacional
         </p>
       </div>
 
       {/* Grid de Tarjetas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {dashboardCards.map((card) => {
           const isFeatured = card.featured;
-          const colorClasses = {
-            blue: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100',
-            red: 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100',
-            green: 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100',
-            purple: 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100',
-            dark: 'bg-slate-800 border-slate-700 text-white hover:bg-slate-900'
+          
+          // Colores para los iconos según el tipo de tarjeta
+          const iconColors = {
+            blue: 'bg-blue-50 text-blue-600',
+            red: 'bg-red-50 text-red-600',
+            green: 'bg-green-50 text-green-600',
+            purple: 'bg-purple-50 text-purple-600',
+            dark: 'bg-white/10 text-white'
           };
 
           return (
@@ -107,46 +109,37 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
               key={card.id}
               onClick={card.onClick}
               className={`
-                relative p-6 rounded-xl shadow-sm border-2 transition-all duration-200
-                transform hover:scale-105 hover:shadow-md
+                relative p-6 rounded-2xl shadow-sm border border-gray-100 transition-all duration-200
+                transform hover:scale-[1.02] hover:shadow-md
                 ${isFeatured 
-                  ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 text-white hover:from-slate-900 hover:to-slate-800' 
-                  : colorClasses[card.color as keyof typeof colorClasses]
+                  ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700' 
+                  : 'bg-white text-gray-900 hover:border-gray-200'
                 }
-                ${isFeatured ? 'md:col-span-2 lg:col-span-1' : ''}
                 text-left
               `}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className={`
-                  p-3 rounded-lg
-                  ${isFeatured 
-                    ? 'bg-white/10' 
-                    : card.color === 'blue' ? 'bg-blue-100' :
-                      card.color === 'red' ? 'bg-red-100' :
-                      card.color === 'green' ? 'bg-green-100' :
-                      card.color === 'purple' ? 'bg-purple-100' : ''
-                  }
+                  p-2.5 rounded-lg
+                  ${iconColors[card.color as keyof typeof iconColors]}
                 `}>
-                  <div className={isFeatured ? 'text-white' : ''}>
-                    {card.icon}
-                  </div>
+                  {card.icon}
                 </div>
                 {isFeatured && (
-                  <span className="px-2 py-1 text-xs font-semibold bg-white/20 rounded text-white">
+                  <span className="px-2.5 py-1 text-xs font-semibold bg-white/20 rounded-md text-white">
                     Destacado
                   </span>
                 )}
               </div>
               <h3 className={`
                 text-xl font-bold mb-2
-                ${isFeatured ? 'text-white' : ''}
+                ${isFeatured ? 'text-white' : 'text-gray-900'}
               `}>
                 {card.title}
               </h3>
               <p className={`
                 text-sm
-                ${isFeatured ? 'text-slate-300' : 'opacity-70'}
+                ${isFeatured ? 'text-white/90' : 'text-gray-500'}
               `}>
                 {card.description}
               </p>
