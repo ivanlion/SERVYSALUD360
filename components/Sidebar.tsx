@@ -112,6 +112,12 @@ export default function Sidebar() {
 
           {/* Menu Items */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            {/* Subtítulo MÓDULOS DE GESTIÓN */}
+            <div className="px-4 mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                MÓDULOS DE GESTIÓN
+              </p>
+            </div>
             {menuItems.map((item) => {
               const isActive = pathname === item.href;
               return (

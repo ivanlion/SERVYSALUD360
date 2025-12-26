@@ -81,7 +81,7 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
     <div className="space-y-8 animate-in fade-in duration-500">
       
       {/* Saludo de Bienvenida - Estilo minimalista */}
-      <div>
+      <div className="mb-12">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           Bienvenido, {userName}
         </h1>

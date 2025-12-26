@@ -541,40 +541,32 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
                   </span>
                 </div>
               )}
-              <button 
-                onClick={handleToggleChat}
-                className={`
-                  px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm lg:text-base font-bold shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2
-                  ${showGeminiChat 
-                    ? 'bg-purple-700 text-white ring-2 sm:ring-4 ring-purple-200' 
-                    : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700'}
-                `}
-              >
-                <MessageSquare size={18} className="sm:w-5 sm:h-5 lg:w-[22px] lg:h-[22px] stroke-2" />
-                <span className="hidden sm:inline">{showGeminiChat ? 'Cerrar Chat' : 'Asistente IA'}</span>
-                <span className="sm:hidden">IA</span>
-              </button>
-              <button 
-                onClick={handleCreateNew}
-                className={`
-                  px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm lg:text-base font-bold shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2
-                  ${currentView === 'NEW_CASE' 
-                    ? 'bg-blue-700 text-white ring-2 sm:ring-4 ring-blue-200' 
-                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'}
-                `}
-              >
-                <PlusCircle size={18} className="sm:w-5 sm:h-5 lg:w-[22px] lg:h-[22px] stroke-2" />
-                <span className="hidden sm:inline">Nuevo Caso</span>
-                <span className="sm:hidden">Nuevo</span>
-              </button>
-              <button 
-                onClick={handleLogout}
-                className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold bg-red-600 text-white hover:bg-red-700 shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2"
-                title="Cerrar sesión"
-              >
-                <LogOut size={18} className="sm:w-5 sm:h-5 stroke-2" />
-                <span className="hidden sm:inline">Salir</span>
-              </button>
+              {/* Botones solo visibles cuando estamos en Trabajo Modificado (NEW_CASE o EDIT_CASE) */}
+              {(currentView === 'NEW_CASE' || currentView === 'EDIT_CASE') && (
+                <>
+                  <button 
+                    onClick={handleCreateNew}
+                    className={`
+                      px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm lg:text-base font-bold shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2
+                      ${currentView === 'NEW_CASE' 
+                        ? 'bg-blue-700 text-white ring-2 sm:ring-4 ring-blue-200' 
+                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'}
+                    `}
+                  >
+                    <PlusCircle size={18} className="sm:w-5 sm:h-5 lg:w-[22px] lg:h-[22px] stroke-2" />
+                    <span className="hidden sm:inline">Nuevo Caso</span>
+                    <span className="sm:hidden">Nuevo</span>
+                  </button>
+                  <button 
+                    onClick={handleLogout}
+                    className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold bg-red-600 text-white hover:bg-red-700 shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2"
+                    title="Cerrar sesión"
+                  >
+                    <LogOut size={18} className="sm:w-5 sm:h-5 stroke-2" />
+                    <span className="hidden sm:inline">Salir</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
