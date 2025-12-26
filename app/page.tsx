@@ -26,7 +26,12 @@ import {
   Upload,
   Trash2,
   LogOut,
-  User
+  User,
+  Search,
+  Bell,
+  Sparkles,
+  Menu,
+  HelpCircle
 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Dashboard from '../components/Dashboard';
@@ -517,60 +522,113 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
   return (
     <AuthGuard>
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-blue-100 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
-          <div className="flex justify-between h-16 sm:h-20 items-center">
-            <div className="flex flex-1 min-w-0">
-              <div className="flex-shrink-0 flex items-center gap-1.5 sm:gap-2 cursor-pointer hover:scale-105 transition-transform" onClick={() => setCurrentView('DASHBOARD')}>
-                <div className="bg-blue-600 text-white p-1 sm:p-1.5 rounded-lg">
-                  <Activity className="h-5 w-5 sm:h-6 sm:w-6" />
-                </div>
-                <span className="font-bold text-sm sm:text-lg lg:text-xl text-slate-800 tracking-tight truncate">
-                  <span className="hidden sm:inline">Sistema de Gestión de </span>
-                  <span className="hidden xs:inline sm:hidden">Sistema de </span>
-                  <span className="sm:hidden">SGSO</span>
-                  <span className="hidden sm:inline">Salud Ocupacional</span>
-                </span>
+      {/* Navbar - Rediseño Moderno 3 Columnas */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 h-16">
+        <div className="flex items-center justify-between px-6 h-full">
+          {/* Sección Izquierda - Identidad */}
+          <div className="flex items-center gap-3">
+            {/* Botón hamburguesa para móvil (opcional, puede ocultarse en desktop) */}
+            <button 
+              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Toggle sidebar"
+            >
+              <Menu size={20} className="text-gray-600" />
+            </button>
+            
+            {/* Logo y Título */}
+            <div 
+              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setCurrentView('DASHBOARD')}
+            >
+              <div className="bg-blue-600 text-white p-1.5 rounded-lg">
+                <Activity className="h-5 w-5" />
               </div>
+              <span className="font-bold text-lg text-gray-900 hidden sm:inline">
+                Sistema de Gestión de Salud Ocupacional
+              </span>
+              <span className="font-bold text-lg text-gray-900 sm:hidden">
+                SGSO
+              </span>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              {/* Información del usuario */}
-              {user && (
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
-                  <User size={16} className="text-slate-600" />
-                  <span className="text-xs font-medium text-slate-700 truncate max-w-[120px]">
-                    {user.email}
-                  </span>
+          </div>
+
+          {/* Sección Central - Búsqueda y Asistente IA */}
+          <div className="flex-1 max-w-2xl mx-auto flex items-center gap-3 px-4">
+            {/* Barra de Búsqueda */}
+            <div className="flex-1 relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={18} className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar..."
+                className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+              />
+            </div>
+
+            {/* Botón Asistente IA */}
+            <button
+              onClick={handleToggleChat}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+            >
+              <Sparkles size={18} />
+              <span className="hidden md:inline">Asistente IA</span>
+            </button>
+          </div>
+
+          {/* Sección Derecha - Usuario y Utilidades */}
+          <div className="flex items-center gap-6">
+            {/* Soporte */}
+            <a
+              href="#"
+              className="text-gray-700 hover:text-gray-900 font-medium text-sm transition-colors hidden md:block"
+            >
+              Soporte
+            </a>
+
+            {/* Notificaciones */}
+            <button
+              className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="Notificaciones"
+            >
+              <Bell size={20} className="text-gray-600" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            </button>
+
+            {/* Perfil de Usuario - Avatar */}
+            {user && (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-semibold text-gray-700 text-sm">
+                  {(() => {
+                    if (!user.email) return 'U';
+                    const emailParts = user.email.split('@')[0];
+                    const firstLetter = emailParts.charAt(0).toUpperCase();
+                    const secondLetter = emailParts.length > 1 ? emailParts.charAt(1).toUpperCase() : '';
+                    return firstLetter + secondLetter;
+                  })()}
                 </div>
-              )}
-              {/* Botones solo visibles cuando estamos en Trabajo Modificado (NEW_CASE o EDIT_CASE) */}
-              {(currentView === 'NEW_CASE' || currentView === 'EDIT_CASE') && (
-                <>
-                  <button 
-                    onClick={handleCreateNew}
-                    className={`
-                      px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm lg:text-base font-bold shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2
-                      ${currentView === 'NEW_CASE' 
-                        ? 'bg-blue-700 text-white ring-2 sm:ring-4 ring-blue-200' 
-                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'}
-                    `}
-                  >
-                    <PlusCircle size={18} className="sm:w-5 sm:h-5 lg:w-[22px] lg:h-[22px] stroke-2" />
-                    <span className="hidden sm:inline">Nuevo Caso</span>
-                    <span className="sm:hidden">Nuevo</span>
-                  </button>
-                  <button 
-                    onClick={handleLogout}
-                    className="px-3 py-2 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold bg-red-600 text-white hover:bg-red-700 shadow-lg transition-all transform hover:-translate-y-0.5 hover:shadow-xl flex items-center gap-1.5 sm:gap-2"
-                    title="Cerrar sesión"
-                  >
-                    <LogOut size={18} className="sm:w-5 sm:h-5 stroke-2" />
-                    <span className="hidden sm:inline">Salir</span>
-                  </button>
-                </>
-              )}
-            </div>
+                {/* Botones condicionales para Trabajo Modificado */}
+                {(currentView === 'NEW_CASE' || currentView === 'EDIT_CASE') && (
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={handleCreateNew}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                    >
+                      <PlusCircle size={16} />
+                      <span className="hidden lg:inline">Nuevo Caso</span>
+                    </button>
+                    <button 
+                      onClick={handleLogout}
+                      className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors flex items-center gap-1.5"
+                      title="Cerrar sesión"
+                    >
+                      <LogOut size={16} />
+                      <span className="hidden lg:inline">Salir</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </nav>
