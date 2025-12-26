@@ -11,6 +11,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import LayoutWrapper from "../components/LayoutWrapper";
+import { NavigationProvider } from "../contexts/NavigationContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,9 +47,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LayoutWrapper>
-          {children}
-        </LayoutWrapper>
+        <NavigationProvider>
+          <LayoutWrapper>
+            {children}
+          </LayoutWrapper>
+        </NavigationProvider>
       </body>
     </html>
   );

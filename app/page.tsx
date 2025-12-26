@@ -31,10 +31,12 @@ import {
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Dashboard from '../components/Dashboard';
 import CaseForm from '../components/CaseForm';
+import AccessManagement from '../components/AccessManagement';
 import AuthGuard from '../components/AuthGuard';
 import { CaseData, INITIAL_CASE, createNewReevaluation } from '../types';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useNavigation } from '../contexts/NavigationContext';
 
 /**
  * Datos de ejemplo para demostración (no se utilizan en producción)
@@ -129,7 +131,7 @@ const MOCK_CASES: CaseData[] = [
 /**
  * Tipos de vista disponibles en la aplicación
  */
-type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE';
+type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT';
 
 /**
  * Componente principal de la aplicación
@@ -137,7 +139,7 @@ type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE';
  */
 export default function Home() {
   const router = useRouter();
-  const [currentView, setCurrentView] = useState<View>('DASHBOARD');
+  const { currentView, setCurrentView } = useNavigation();
   const [cases, setCases] = useState<CaseData[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -587,6 +589,9 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
             onSave={handleSaveCase} 
             onCancel={() => setCurrentView('DASHBOARD')}
           />
+        )}
+        {currentView === 'ACCESS_MANAGEMENT' && (
+          <AccessManagement />
         )}
       </main>
 

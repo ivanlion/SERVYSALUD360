@@ -19,52 +19,80 @@ import {
   Settings,
   Menu,
   X,
-  Activity
+  Activity,
+  Users
 } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
 
 interface SidebarItem {
   label: string;
   icon: React.ReactNode;
   href: string;
+  view?: 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT';
+  hasSubItems?: boolean;
 }
 
 const menuItems: SidebarItem[] = [
   {
     label: 'Panel Principal',
     icon: <LayoutDashboard size={20} />,
-    href: '/'
+    href: '/',
+    view: 'DASHBOARD' as const
   },
   {
     label: 'Trabajo Modificado',
     icon: <FileText size={20} />,
-    href: '/'
+    href: '/',
+    view: 'DASHBOARD' as const
   },
   {
     label: 'Vigilancia Médica',
     icon: <Stethoscope size={20} />,
-    href: '/'
+    href: '/',
+    view: 'DASHBOARD' as const
   },
   {
     label: 'Seguridad',
     icon: <Shield size={20} />,
-    href: '/'
+    href: '/',
+    view: 'DASHBOARD' as const
   },
   {
     label: 'Administración',
     icon: <Settings size={20} />,
-    href: '/'
+    href: '/',
+    view: 'DASHBOARD' as const,
+    hasSubItems: true
+  }
+];
+
+// Item especial para Gestión de Usuarios (dentro de Administración)
+const adminSubItems: SidebarItem[] = [
+  {
+    label: 'Gestión de Usuarios',
+    icon: <Users size={20} />,
+    href: '/',
+    view: 'ACCESS_MANAGEMENT' as const
   }
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const { currentView, setCurrentView } = useNavigation();
 
   // No mostrar sidebar en la página de login
   if (pathname === '/login') {
     return null;
   }
+
+  const handleItemClick = (item: SidebarItem) => {
+    if (item.view) {
+      setCurrentView(item.view);
+    }
+    setIsMobileOpen(false);
+  };
 
   return (
     <>
@@ -119,27 +147,64 @@ export default function Sidebar() {
               </p>
             </div>
             {menuItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = item.view === currentView && currentView !== 'ACCESS_MANAGEMENT';
+              const isAdminActive = item.label === 'Administración' && (currentView === 'ACCESS_MANAGEMENT' || currentView === 'DASHBOARD');
+              
               return (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  onClick={() => setIsMobileOpen(false)}
-                  className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg
-                    transition-all duration-200
-                    ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
-                        : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
-                    }
-                  `}
-                >
-                  <span className={isActive ? 'text-blue-600' : 'text-slate-400'}>
-                    {item.icon}
-                  </span>
-                  <span className="text-sm">{item.label}</span>
-                </Link>
+                <React.Fragment key={item.label}>
+                  <button
+                    onClick={() => {
+                      if (item.hasSubItems && currentView !== 'ACCESS_MANAGEMENT') {
+                        // Si es Administración y no estamos en ACCESS_MANAGEMENT, no hacer nada (solo mostrar sub-items)
+                        return;
+                      }
+                      handleItemClick(item);
+                    }}
+                    className={`
+                      w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left
+                      transition-all duration-200
+                      ${
+                        isActive || (item.label === 'Administración' && currentView === 'ACCESS_MANAGEMENT')
+                          ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
+                          : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
+                      }
+                    `}
+                  >
+                    <span className={isActive || (item.label === 'Administración' && currentView === 'ACCESS_MANAGEMENT') ? 'text-blue-600' : 'text-slate-400'}>
+                      {item.icon}
+                    </span>
+                    <span className="text-sm">{item.label}</span>
+                  </button>
+                  
+                  {/* Sub-items de Administración - Siempre mostrar cuando Administración está en el menú */}
+                  {item.hasSubItems && (
+                    <div className="mt-1 ml-4 space-y-1">
+                      {adminSubItems.map((subItem) => {
+                        const isSubActive = subItem.view === currentView;
+                        return (
+                          <button
+                            key={subItem.label}
+                            onClick={() => handleItemClick(subItem)}
+                            className={`
+                              w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left
+                              transition-all duration-200
+                              ${
+                                isSubActive
+                                  ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
+                                  : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
+                              }
+                            `}
+                          >
+                            <span className={isSubActive ? 'text-blue-600' : 'text-slate-400'}>
+                              {subItem.icon}
+                            </span>
+                            <span className="text-sm">{subItem.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </React.Fragment>
               );
             })}
           </nav>
