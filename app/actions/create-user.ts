@@ -66,13 +66,16 @@ export async function createUser(formData: FormData) {
     });
 
     // Crear usuario en Auth
+    // El trigger de SQL se encargará de crear el perfil automáticamente
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true, // Confirmar email automáticamente
       user_metadata: {
-        nombre,
-        rol,
+        full_name: nombre, // Usar full_name para que el trigger lo detecte
+        nombre: nombre, // Mantener compatibilidad
+        rol: rol,
+        role: rol, // Mantener compatibilidad
       },
     });
 
@@ -91,26 +94,22 @@ export async function createUser(formData: FormData) {
       };
     }
 
-    // Insertar datos adicionales en la tabla de perfiles (si existe)
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .insert({
-        id: authData.user.id,
-        full_name: nombre, // Usar full_name como campo principal
-        nombre: nombre, // Mantener compatibilidad con nombre también
-        email,
-        rol,
-        role: rol, // Mantener compatibilidad con role también
-        created_at: new Date().toISOString(),
-      })
-      .select();
+    // El trigger de SQL debería crear automáticamente el perfil
+    // Esperar un momento para que el trigger se ejecute
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Si la tabla 'profiles' no existe, solo registramos el error pero no fallamos
-    // porque el usuario ya fue creado en Auth
-    if (profileError) {
-      console.warn('⚠️ No se pudo insertar en la tabla profiles:', profileError.message);
-      console.warn('⚠️ El usuario fue creado en Auth pero no se guardaron datos adicionales.');
-      console.warn('⚠️ Asegúrate de crear la tabla "profiles" en Supabase con las columnas: id, nombre, email, rol, created_at');
+    // Verificar que el perfil se haya creado (opcional, solo para logging)
+    const { data: profileCheck } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (!profileCheck) {
+      console.warn('⚠️ El usuario fue creado en Auth pero el perfil no se creó automáticamente.');
+      console.warn('⚠️ Verifica que el trigger de SQL esté configurado correctamente.');
+    } else {
+      console.log('✅ Usuario y perfil creados exitosamente');
     }
 
     // Revalidar la ruta para refrescar la tabla

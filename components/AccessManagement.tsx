@@ -180,7 +180,7 @@ export default function AccessManagement() {
           rol: 'Médico',
         });
 
-        // Cerrar el modal después de 1.5 segundos
+        // Cerrar el modal automáticamente después de mostrar éxito
         setTimeout(() => {
           setIsModalOpen(false);
           setNotification(null);
@@ -439,7 +439,7 @@ export default function AccessManagement() {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             {/* Header del Modal */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">Crear Nuevo Usuario</h2>
+              <h2 className="text-xl font-bold text-gray-900">Registrar Nuevo Usuario</h2>
               <button
                 onClick={handleCloseModal}
                 className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
@@ -540,7 +540,8 @@ export default function AccessManagement() {
                 >
                   <option value="Administrador">Administrador</option>
                   <option value="Médico">Médico</option>
-                  <option value="Seguridad">Seguridad</option>
+                  <option value="Ingeniero">Ingeniero</option>
+                  <option value="Usuario">Usuario</option>
                 </select>
               </div>
 
@@ -562,10 +563,10 @@ export default function AccessManagement() {
                   {isLoading ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      <span>Creando...</span>
+                      <span>Guardando...</span>
                     </>
                   ) : (
-                    <span>Crear Usuario</span>
+                    <span>Guardar Usuario</span>
                   )}
                 </button>
               </div>
