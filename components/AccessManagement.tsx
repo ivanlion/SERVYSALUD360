@@ -8,9 +8,10 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, Plus, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { createUser } from '../app/actions/create-user';
+import { getUsers } from '../app/actions/get-users';
 
 interface User {
   id: string;
@@ -85,9 +86,10 @@ const getAvatarColor = (name: string): string => {
 };
 
 export default function AccessManagement() {
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Estados del formulario
@@ -97,6 +99,31 @@ export default function AccessManagement() {
     password: '',
     rol: 'Médico',
   });
+
+  // Cargar usuarios de Supabase al montar el componente
+  useEffect(() => {
+    const loadUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+        const result = await getUsers();
+        if (result.success && result.users.length > 0) {
+          setUsers(result.users);
+        } else {
+          // Si no hay usuarios en Supabase, usar datos mock como fallback
+          console.warn('⚠️ No se encontraron usuarios en Supabase, usando datos mock');
+          setUsers(MOCK_USERS);
+        }
+      } catch (error: any) {
+        console.error('Error al cargar usuarios:', error);
+        // En caso de error, usar datos mock como fallback
+        setUsers(MOCK_USERS);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    loadUsers();
+  }, []);
 
   const handlePermissionChange = (
     userId: string,
@@ -150,20 +177,26 @@ export default function AccessManagement() {
           message: result.message || 'Usuario creado exitosamente',
         });
 
-        // Agregar el nuevo usuario a la lista local (temporal hasta que se recargue desde Supabase)
-        const newUser: User = {
-          id: result.userId || `temp-${Date.now()}`,
-          name: formData.nombre,
-          email: formData.email,
-          role: formData.rol,
-          permissions: {
-            trabajoModificado: false,
-            vigilanciaMedica: false,
-            seguimientoTrabajadores: false,
-            seguridadHigiene: false,
-          },
-        };
-        setUsers(prevUsers => [...prevUsers, newUser]);
+        // Recargar usuarios desde Supabase para obtener el usuario recién creado
+        const reloadResult = await getUsers();
+        if (reloadResult.success && reloadResult.users.length > 0) {
+          setUsers(reloadResult.users);
+        } else {
+          // Si falla la recarga, agregar el usuario localmente como fallback
+          const newUser: User = {
+            id: result.userId || `temp-${Date.now()}`,
+            name: formData.nombre,
+            email: formData.email,
+            role: formData.rol,
+            permissions: {
+              trabajoModificado: false,
+              vigilanciaMedica: false,
+              seguimientoTrabajadores: false,
+              seguridadHigiene: false,
+            },
+          };
+          setUsers(prevUsers => [...prevUsers, newUser]);
+        }
 
         // Limpiar el formulario
         setFormData({
@@ -232,8 +265,23 @@ export default function AccessManagement() {
 
       {/* Tabla de Permisos */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        {isLoadingUsers ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="animate-spin text-indigo-600" size={32} />
+              <p className="text-sm text-gray-500">Cargando usuarios...</p>
+            </div>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <p className="text-gray-500 mb-2">No hay usuarios registrados</p>
+              <p className="text-sm text-gray-400">Haz clic en "Agregar Usuario" para crear el primero</p>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
             {/* Cabecera de Tabla */}
             <thead className="bg-white border-b border-gray-200">
               <tr>
@@ -399,6 +447,7 @@ export default function AccessManagement() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Modal para Crear Usuario */}
