@@ -43,9 +43,10 @@ export async function getUsers() {
     });
 
     // Obtener usuarios desde la tabla profiles (solo campos necesarios para mejor rendimiento)
+    // Nota: Solo seleccionar columnas que existen en la tabla (full_name, no nombre ni name)
     const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, nombre, name, rol, role, permissions, created_at')
+      .select('id, email, full_name, rol, role, permissions, created_at')
       .order('created_at', { ascending: false });
 
     // Si hay error pero no es porque la tabla no existe, retornar error
@@ -124,7 +125,7 @@ export async function getUsers() {
 
         return {
           id: profile.id,
-          name: profile.full_name || profile.nombre || profile.name || null,
+          name: profile.full_name || null, // Solo usar full_name, que es la columna que existe
           email: profile.email || '',
           role: profile.rol || profile.role || 'Usuario',
           permissions,
