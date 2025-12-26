@@ -216,91 +216,85 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
       return;
     }
 
-    // Si no hay ID de Supabase, no se puede eliminar
-    if (!caseData.supabaseId) {
-      alert('Error: No se puede eliminar este registro. Falta el ID de la base de datos.');
-      console.error('No se encontró supabaseId en:', caseData);
+    // Validar que tenemos un ID de Supabase válido
+    if (!caseData.supabaseId || caseData.supabaseId === null || caseData.supabaseId === undefined) {
+      const errorMsg = 'Error: No se puede eliminar este registro. Falta el ID de la base de datos.';
+      console.error('❌', errorMsg, caseData);
+      alert(errorMsg);
       return;
     }
 
     setDeletingId(caseData.id);
 
     try {
-      console.log('🗑️ Intentando eliminar registro:', {
+      console.log('🗑️ [DELETE] Iniciando eliminación:', {
         caseId: caseData.id,
         supabaseId: caseData.supabaseId,
-        tipoSupabaseId: typeof caseData.supabaseId,
+        tipoId: typeof caseData.supabaseId,
         trabajador: caseData.trabajadorNombre,
         dni: caseData.dni
       });
       
-      // Validar que tenemos un ID válido
-      if (!caseData.supabaseId || (caseData.supabaseId === null) || (caseData.supabaseId === undefined)) {
-        const errorMsg = 'No se puede eliminar: el registro no tiene un ID de Supabase válido.';
-        console.error('❌', errorMsg);
-        alert(errorMsg + '\n\nPor favor, recarga la página y vuelve a intentar.');
-        return;
-      }
-      
       // Eliminar de Supabase usando el ID real
-      console.log('📡 Enviando petición DELETE a Supabase con ID:', caseData.supabaseId);
+      console.log('📡 [DELETE] Enviando petición a Supabase...');
       const { data, error: deleteError } = await supabase
         .from('registros_trabajadores')
         .delete()
         .eq('id', caseData.supabaseId)
         .select();
 
+      // Manejar errores de Supabase
       if (deleteError) {
-        console.error('❌ Error de Supabase al eliminar:', deleteError);
-        console.error('❌ Detalles del error:', {
+        console.error('❌ [DELETE] Error de Supabase:', {
           message: deleteError.message,
           details: deleteError.details,
           hint: deleteError.hint,
           code: deleteError.code
         });
-        throw deleteError;
+        throw new Error(`Error de Supabase: ${deleteError.message || 'Error desconocido'}`);
       }
 
-      console.log('✅ Registro eliminado exitosamente. Respuesta de Supabase:', data);
+      // Verificar respuesta
+      console.log('✅ [DELETE] Respuesta de Supabase:', data);
       
-      // Verificar que realmente se eliminó
       if (!data || data.length === 0) {
-        console.warn('⚠️ Supabase no devolvió datos eliminados. Esto puede indicar que el registro no existía o no se pudo eliminar.');
+        console.warn('⚠️ [DELETE] Supabase no devolvió datos. El registro puede no haber existido.');
+        // Aun así, intentar actualizar la UI
+        setCases(prevCases => prevCases.filter(c => c.id !== caseData.id));
+        alert(`El registro de ${caseData.trabajadorNombre} fue procesado, pero no se pudo confirmar la eliminación. Por favor, recarga la página.`);
+        return;
       }
 
-      // Recargar los datos desde Supabase para asegurar que esté actualizado
-      const { data: refreshedData, error: refreshError } = await supabase
-        .from('registros_trabajadores')
-        .select('*')
-        .order('fecha_registro', { ascending: false });
-
-      if (refreshError) {
-        console.error('Error al recargar datos:', refreshError);
-        // Aun así, actualizar el estado local
-        setCases(prevCases => prevCases.filter(c => c.id !== caseData.id));
-      } else if (refreshedData) {
-        // Actualizar con los datos frescos de Supabase
-        const mappedCases = refreshedData.map((record: any, index: number) => 
-          mapSupabaseToCaseData(record as SupabaseRecord, index)
-        );
-        setCases(mappedCases);
-      } else {
-        // Si no hay datos, simplemente eliminar del estado local
-        setCases(prevCases => prevCases.filter(c => c.id !== caseData.id));
-      }
+      // Actualizar el estado local INMEDIATAMENTE para reflejar el cambio en la UI
+      console.log('🔄 [DELETE] Actualizando estado local...');
+      setCases(prevCases => {
+        const updated = prevCases.filter(c => c.id !== caseData.id);
+        console.log(`✅ [DELETE] Estado actualizado. Registros restantes: ${updated.length}`);
+        return updated;
+      });
       
       // Mostrar mensaje de éxito
-      alert(`Registro de ${caseData.trabajadorNombre} eliminado exitosamente.`);
+      console.log('✅ [DELETE] Eliminación completada exitosamente');
+      alert(`✅ Registro de ${caseData.trabajadorNombre} eliminado exitosamente.`);
+      
     } catch (err: any) {
-      console.error('Error al eliminar registro:', err);
-      console.error('Detalles del error:', {
+      // Capturar y mostrar cualquier error
+      console.error('❌ [DELETE] Error al eliminar registro:', err);
+      console.error('❌ [DELETE] Stack trace:', err.stack);
+      console.error('❌ [DELETE] Detalles completos:', {
+        name: err.name,
         message: err.message,
         details: err.details,
         hint: err.hint,
         code: err.code
       });
-      alert(`Error al eliminar el registro: ${err.message || 'Error desconocido'}\n\nPor favor, verifica la consola del navegador para más detalles.`);
+      
+      // Mostrar error al usuario
+      const errorMessage = err.message || 'Error desconocido al eliminar el registro';
+      alert(`❌ Error al eliminar el registro:\n\n${errorMessage}\n\nPor favor, verifica la consola del navegador (F12) para más detalles.`);
+      
     } finally {
+      // Siempre limpiar el estado de carga
       setDeletingId(null);
     }
   };
