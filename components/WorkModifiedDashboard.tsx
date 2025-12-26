@@ -2,6 +2,7 @@
  * WorkModifiedDashboard - Dashboard de Trabajo Modificado
  * 
  * Muestra el listado de casos con tabla, KPIs, búsqueda y funcionalidades de gestión
+ * Diseño moderno y consistente con el módulo de Administración
  * 
  * @component
  */
@@ -11,7 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { CaseData, INITIAL_CASE, EventType } from '../types';
 import { supabase } from '../lib/supabase';
-import { Edit2, Search, Building2, Users, Calendar, Clock, Activity, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { Edit2, Search, Building2, Users, Calendar, Clock, Activity, AlertCircle, Loader2, Trash2, Plus } from 'lucide-react';
 
 interface WorkModifiedDashboardProps {
   onEdit: (data: CaseData) => void;
@@ -138,8 +139,6 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
   const totalCases = filteredCases.length;
   const activeCases = filteredCases.filter(c => c.status === 'ACTIVO').length;
   const closedCases = filteredCases.filter(c => c.status === 'CERRADO').length;
-
-  // Calculate Global Accumulated Days
   const globalAccumulatedDays = filteredCases.reduce((acc, c) => {
     return acc + getCaseDaysInfo(c).total;
   }, 0);
@@ -222,14 +221,14 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Gestión de Trabajo Modificado</h2>
-          <p className="text-slate-500 text-sm mt-1">Monitoreo y seguimiento de restricciones laborales.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Gestión de Trabajo Modificado</h1>
+          <p className="text-gray-500">Monitoreo y seguimiento de restricciones laborales.</p>
         </div>
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-4">
-            <Loader2 className="animate-spin text-blue-600" size={48} />
+            <Loader2 className="animate-spin text-indigo-600" size={48} />
             <p className="text-lg font-semibold text-slate-600">Cargando datos...</p>
-            <p className="text-sm text-slate-500">Obteniendo registros de Supabase</p>
+            <p className="text-sm text-gray-500">Obteniendo registros de Supabase</p>
           </div>
         </div>
       </div>
@@ -241,8 +240,8 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Gestión de Trabajo Modificado</h2>
-          <p className="text-slate-500 text-sm mt-1">Monitoreo y seguimiento de restricciones laborales.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Gestión de Trabajo Modificado</h1>
+          <p className="text-gray-500">Monitoreo y seguimiento de restricciones laborales.</p>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-xl p-6">
           <div className="flex items-center gap-3">
@@ -258,231 +257,283 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 lg:space-y-8 animate-in fade-in duration-500">
-      
-      {/* Title Header */}
-      <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">Gestión de Trabajo Modificado</h2>
-        <p className="text-slate-500 text-xs sm:text-sm mt-1">Monitoreo y seguimiento de restricciones laborales.</p>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Encabezado - Mismo estilo que Administración */}
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Gestión de Trabajo Modificado
+          </h1>
+          <p className="text-gray-500">
+            Monitoreo y seguimiento de restricciones laborales.
+          </p>
+        </div>
+        {/* Botón Nuevo Caso */}
+        <button
+          onClick={onCreate}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+        >
+          <Plus size={18} />
+          <span>Nuevo Caso</span>
+        </button>
       </div>
 
-      {/* Search & Filter Section */}
-      <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-blue-200">
-        <label className="block text-xs sm:text-sm font-medium text-blue-900 mb-2">Búsqueda</label>
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 sm:h-5 sm:w-5 text-blue-300" />
+      {/* KPIs - Tarjetas sutiles en fila superior */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center gap-4">
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <Users className="text-blue-600" size={24} />
           </div>
-          <input
-            type="text"
-            className="block w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base border border-blue-200 rounded-lg leading-5 bg-blue-50/20 text-gray-900 placeholder-blue-300 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            placeholder="Buscar por Trabajador, DNI o Empresa..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        {searchTerm && (
-           <p className="text-xs text-slate-500 mt-2">
-             Mostrando resultados para: <span className="font-medium text-slate-700">"{searchTerm}"</span>
-           </p>
-        )}
-      </div>
-
-      {/* Dynamic KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs sm:text-sm font-medium text-slate-500 truncate">Total Casos</p>
-            <p className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">{totalCases}</p>
-          </div>
-          <div className="bg-indigo-50 p-2 sm:p-3 rounded-full text-indigo-600 flex-shrink-0 ml-2">
-            <Users size={20} className="sm:w-6 sm:h-6" />
-          </div>
-        </div>
-        
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs sm:text-sm font-medium text-slate-500 truncate">Casos Activos</p>
-            <p className="text-2xl sm:text-3xl font-bold text-blue-600 mt-1">{activeCases}</p>
-          </div>
-           <div className="bg-blue-50 p-2 sm:p-3 rounded-full text-blue-600 flex-shrink-0 ml-2">
-            <Activity size={20} className="sm:w-6 sm:h-6" />
+          <div>
+            <p className="text-sm font-medium text-gray-500">Total Casos</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{totalCases}</p>
           </div>
         </div>
 
-        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-blue-200 flex items-center justify-between hover:shadow-md transition-shadow">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs sm:text-sm font-medium text-slate-500 truncate">Casos Cerrados</p>
-            <p className="text-2xl sm:text-3xl font-bold text-emerald-600 mt-1">{closedCases}</p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center gap-4">
+          <div className="bg-green-50 p-3 rounded-lg">
+            <Activity className="text-green-600" size={24} />
           </div>
-           <div className="bg-emerald-50 p-2 sm:p-3 rounded-full text-emerald-600 flex-shrink-0 ml-2">
-            <Users size={20} className="sm:w-6 sm:h-6" />
+          <div>
+            <p className="text-sm font-medium text-gray-500">Casos Activos</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{activeCases}</p>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-50 to-white p-4 sm:p-6 rounded-xl shadow-sm border border-orange-200 flex items-center justify-between hover:shadow-md transition-shadow col-span-2 lg:col-span-1">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs sm:text-sm font-bold text-orange-800/70 uppercase tracking-wide truncate">Días Acumulados</p>
-            <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-orange-600 mt-1">{globalAccumulatedDays}</p>
-            <p className="text-[9px] sm:text-[10px] text-orange-400 font-medium hidden sm:block">Suma de todos los casos visibles</p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center gap-4">
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <Users className="text-gray-600" size={24} />
           </div>
-           <div className="bg-orange-100 p-2 sm:p-3 rounded-full text-orange-600 flex-shrink-0 ml-2">
-            <Clock size={20} className="sm:w-6 sm:h-6" />
+          <div>
+            <p className="text-sm font-medium text-gray-500">Casos Cerrados</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{closedCases}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center gap-4">
+          <div className="bg-orange-50 p-3 rounded-lg">
+            <Clock className="text-orange-600" size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-500">Días Acumulados</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{globalAccumulatedDays}</p>
           </div>
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-blue-200 overflow-hidden">
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-blue-100">
-          <h3 className="text-base sm:text-lg font-semibold text-blue-900">Listado de Pacientes</h3>
+      {/* Contenedor Principal Unificado - Mismo estilo que Administración */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Barra de Herramientas (Toolbar) - Dentro del contenedor */}
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center gap-4">
+            {/* Buscador estilo píldora */}
+            <div className="flex-1 relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                className="block w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-full bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white transition-all"
+                placeholder="Buscar por Trabajador, DNI o Empresa..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
         </div>
-        <div className="overflow-x-auto -mx-4 sm:mx-0">
-          <div className="inline-block min-w-full align-middle">
-            <div className="overflow-hidden">
-              <table className="min-w-full divide-y divide-blue-50">
-                <thead className="bg-blue-50">
-                  <tr>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider">Trabajador</th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider hidden md:table-cell">Diagnóstico / Evento</th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">Inicio TM</th>
-                    <th className="px-3 sm:px-6 py-3 text-center text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider whitespace-nowrap">Días</th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider whitespace-nowrap hidden xl:table-cell">Término</th>
-                    <th className="px-3 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider hidden sm:table-cell">Estado</th>
-                    <th className="px-3 sm:px-6 py-3 text-right text-xs sm:text-sm font-medium text-blue-800 uppercase tracking-wider">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-50">
-                  {filteredCases.map((c) => {
-                    const { initial, added, total } = getCaseDaysInfo(c);
-                    const endDateISO = calculateEndDate(c.assessment?.indicacionInicio || '', total);
-                    const endDateFormatted = formatDate(endDateISO);
-                    const startDateFormatted = formatDate(c.assessment?.indicacionInicio || '');
 
-                    const primaryDiagnosis = c.assessment?.diagnosticos?.[0]?.descripcion || 'Sin diagnóstico';
-                    const primaryCie10 = c.assessment?.diagnosticos?.[0]?.cie10 || '';
+        {/* Tabla de Datos - Mismo estilo que Administración */}
+        {filteredCases.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              {searchTerm ? (
+                <>
+                  <p className="text-gray-500 mb-2">No se encontraron casos que coincidan con la búsqueda.</p>
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    Limpiar filtros
+                  </button>
+                </>
+              ) : (
+                <p className="text-gray-500">No hay registros en la base de datos.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              {/* Cabecera de Tabla - Mismo estilo que Administración */}
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    TRABAJADOR
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    DIAGNÓSTICO / EVENTO
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    INICIO TM
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    DÍAS
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    TÉRMINO
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ESTADO
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ACCIONES
+                  </th>
+                </tr>
+              </thead>
 
-                    return (
-                      <tr key={c.id} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-slate-600">
-                          <div className="font-bold text-slate-900 text-xs sm:text-sm truncate">{c.trabajadorNombre}</div>
-                          <div className="text-xs text-slate-500">DNI: {c.dni}</div>
-                          <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
-                            <Building2 size={10} />
-                            <span className="truncate">{c.empresa || 'Empresa no reg.'}</span>
+              {/* Cuerpo de Tabla - Mismo estilo que Administración */}
+              <tbody className="divide-y divide-gray-100">
+                {filteredCases.map((c) => {
+                  const { initial, added, total } = getCaseDaysInfo(c);
+                  const endDateISO = calculateEndDate(c.assessment?.indicacionInicio || '', total);
+                  const endDateFormatted = formatDate(endDateISO);
+                  const startDateFormatted = formatDate(c.assessment?.indicacionInicio || '');
+
+                  const primaryDiagnosis = c.assessment?.diagnosticos?.[0]?.descripcion || 'Sin diagnóstico';
+                  const primaryCie10 = c.assessment?.diagnosticos?.[0]?.cie10 || '';
+
+                  return (
+                    <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                      {/* Columna Trabajador */}
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="font-semibold text-gray-900 text-sm">
+                            {c.trabajadorNombre || '-'}
                           </div>
-                          {/* Mostrar diagnóstico en móvil */}
-                          <div className="md:hidden mt-2 pt-2 border-t border-blue-100">
-                            <div className="font-medium text-slate-900 text-xs truncate" title={primaryDiagnosis}>
-                              {primaryDiagnosis}
-                            </div>
-                            <div className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
-                              {c.tipoEvento}
-                            </div>
+                          <div className="text-sm text-gray-500 mt-1">DNI: {c.dni || '-'}</div>
+                          <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
+                            <Building2 size={12} />
+                            <span>{c.empresa || 'Empresa no registrada'}</span>
                           </div>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-slate-600 max-w-xs hidden md:table-cell">
-                          <div className="font-medium text-slate-900 truncate" title={primaryDiagnosis}>
-                            {primaryDiagnosis} {primaryCie10 && <span className="text-slate-500 text-xs">({primaryCie10})</span>}
+                        </div>
+                      </td>
+
+                      {/* Columna Diagnóstico / Evento */}
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm text-gray-900 font-medium">
+                            {primaryDiagnosis}
+                            {primaryCie10 && (
+                              <span className="text-gray-500 text-xs ml-1">({primaryCie10})</span>
+                            )}
                           </div>
-                          <div className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 mt-1">
                             {c.tipoEvento}
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-slate-600 whitespace-nowrap hidden lg:table-cell">
-                          {c.fecha ? (
-                            <div className="flex items-center gap-2">
-                              <Calendar size={14} className="text-blue-400" />
-                              {formatDate(c.fecha)}
-                            </div>
-                          ) : (
-                            <span className="text-slate-300">-</span>
-                          )}
-                        </td>
-
-                        {/* Modified Days Column */}
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-center align-middle">
-                          <div className="inline-flex flex-col items-center justify-center bg-slate-50 border border-slate-200 rounded-lg px-2 sm:px-4 py-1 sm:py-1.5 min-w-[70px] sm:min-w-[100px]">
-                            <span className="text-lg sm:text-xl font-bold text-slate-800 leading-none">
-                              {total} <span className="text-[9px] sm:text-[10px] font-normal text-slate-400 uppercase">Días</span>
-                            </span>
-                            <div className="w-full border-t border-slate-200 my-0.5 sm:my-1"></div>
-                            <span className="text-[9px] sm:text-[10px] font-medium text-slate-500 leading-tight">
-                              Inicial: <span className="text-slate-700">{initial}</span>
-                              {added > 0 && (
-                                <span className="text-orange-600 ml-1">
-                                  (+{added})
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-slate-600 whitespace-nowrap hidden xl:table-cell">
-                          {endDateFormatted !== '-' ? (
-                            <div className="flex flex-col">
-                              <span className="text-slate-900 font-medium text-xs sm:text-sm">{endDateFormatted}</span>
-                              {added > 0 && <span className="text-[10px] text-orange-500 italic">Extendida</span>}
-                            </div>
-                          ) : (
-                            <span className="text-slate-300">-</span>
-                          )}
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm hidden sm:table-cell">
-                          <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            c.status === 'ACTIVO' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'
-                          }`}>
-                            {c.status}
                           </span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => onEdit(c)}
-                              className="text-slate-400 hover:text-blue-600 transition-colors p-1"
-                              title="Editar caso"
-                              disabled={deletingId === c.id}
-                            >
-                              <Edit2 size={18} className="sm:w-5 sm:h-5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(c)}
-                              disabled={deletingId === c.id}
-                              className={`text-slate-400 hover:text-red-600 transition-colors p-1 ${deletingId === c.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              title="Eliminar caso"
-                            >
-                              {deletingId === c.id ? <Loader2 size={18} className="sm:w-5 sm:h-5 animate-spin" /> : <Trash2 size={18} className="sm:w-5 sm:h-5" />}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {filteredCases.length === 0 && !isLoading && (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                        <div className="flex flex-col items-center justify-center">
-                          {searchTerm ? (
-                            <>
-                              <p className="text-slate-500">No se encontraron casos que coincidan con la búsqueda.</p>
-                              <button onClick={() => setSearchTerm('')} className="mt-2 text-blue-600 text-sm font-medium hover:underline">
-                                Limpiar filtros
-                              </button>
-                            </>
+                        </div>
+                      </td>
+
+                      {/* Columna Inicio TM */}
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">
+                          {startDateFormatted !== '-' ? (
+                            <div className="flex items-center gap-2">
+                              <Calendar size={14} className="text-gray-400" />
+                              {startDateFormatted}
+                            </div>
                           ) : (
-                            <p className="text-slate-500">No hay registros en la base de datos.</p>
+                            <span className="text-gray-400">-</span>
                           )}
                         </div>
                       </td>
+
+                      {/* Columna Días */}
+                      <td className="px-6 py-4 text-center">
+                        <div className="inline-flex flex-col items-center bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                          <span className="text-lg font-bold text-gray-900">
+                            {total}
+                          </span>
+                          <span className="text-xs text-gray-500 mt-0.5">
+                            Inicial: {initial}
+                            {added > 0 && (
+                              <span className="text-orange-600 ml-1">(+{added})</span>
+                            )}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Columna Término */}
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">
+                          {endDateFormatted !== '-' ? (
+                            <div>
+                              <span className="font-medium">{endDateFormatted}</span>
+                              {added > 0 && (
+                                <span className="text-xs text-orange-600 ml-2 italic">Extendida</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Columna Estado - Badge estilo píldora */}
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          c.status === 'ACTIVO'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {c.status}
+                        </span>
+                      </td>
+
+                      {/* Columna Acciones */}
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => onEdit(c)}
+                            className="text-indigo-600 hover:text-indigo-800 p-1 rounded-md hover:bg-indigo-50 transition-colors"
+                            title="Editar caso"
+                            disabled={deletingId === c.id}
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(c)}
+                            disabled={deletingId === c.id}
+                            className={`p-1 rounded-md transition-colors ${
+                              deletingId === c.id
+                                ? 'text-gray-400 cursor-not-allowed'
+                                : 'text-red-600 hover:text-red-800 hover:bg-red-50'
+                            }`}
+                            title="Eliminar caso"
+                          >
+                            {deletingId === c.id ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={18} />
+                            )}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
-
