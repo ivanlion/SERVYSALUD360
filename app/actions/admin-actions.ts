@@ -201,13 +201,11 @@ export async function updateUser(formData: FormData) {
       };
     }
 
-    // Actualizar el perfil en la tabla profiles
+    // Actualizar el perfil en la tabla profiles (solo full_name, el rol se guarda en user_metadata)
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
       .update({
         full_name: nombre,
-        rol: rol,
-        role: rol, // Compatibilidad
       })
       .eq('id', userId);
 
