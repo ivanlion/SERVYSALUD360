@@ -9,7 +9,7 @@
 'use client';
 
 import React from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   LayoutDashboard, 
@@ -79,6 +79,7 @@ const adminSubItems: SidebarItem[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { currentView, setCurrentView, isSidebarCollapsed } = useNavigation();
 
@@ -90,6 +91,10 @@ export default function Sidebar() {
   const handleItemClick = (item: SidebarItem) => {
     if (item.view) {
       setCurrentView(item.view);
+    }
+    // Si es "Inicio", siempre navegar a la raíz
+    if (item.label === 'Inicio' || item.view === 'DASHBOARD') {
+      router.push('/');
     }
     setIsMobileOpen(false);
   };
