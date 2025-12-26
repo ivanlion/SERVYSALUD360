@@ -40,7 +40,7 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       icon: <Briefcase size={28} />,
       description: 'Gestión de casos y restricciones laborales',
       color: 'blue',
-      onClick: onCreate,
+      onClick: () => setCurrentView('WORK_MODIFIED_DASHBOARD'),
       featured: false
     },
     {
