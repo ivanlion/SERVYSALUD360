@@ -522,61 +522,61 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
   return (
     <AuthGuard>
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Navbar - Estructura Estricta 3 Bloques */}
+      {/* Navbar - Estructura DreamHost Style */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full h-16">
         <div className="flex items-center justify-between px-6 h-full">
-          {/* Bloque Izquierdo - Identidad Unificada (Sólido y Estable) */}
-          <div className="flex items-center gap-4 min-w-fit">
-            {/* 1. Botón hamburguesa */}
+          {/* SECCIÓN IZQUIERDA - Marca (shrink-0) */}
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Botón Menú Hamburguesa */}
             <button 
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Toggle sidebar"
             >
               <Menu size={20} className="text-gray-600" />
             </button>
             
-            {/* 2. Logo */}
-            <div className="bg-blue-600 text-white p-1.5 rounded-lg flex-shrink-0">
+            {/* Icono Escudo */}
+            <div className="bg-blue-600 text-white p-1.5 rounded-lg">
               <Activity className="h-5 w-5" />
             </div>
             
-            {/* 3. Título Completo (whitespace-nowrap obligatorio) */}
+            {/* Texto del Sistema */}
             <div 
-              className="cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0"
+              className="cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setCurrentView('DASHBOARD')}
             >
-              <span className="font-bold text-lg text-gray-900 whitespace-nowrap">
+              <span className="font-bold text-base text-gray-900 whitespace-nowrap">
                 Sistema de Gestión de Salud Ocupacional
               </span>
             </div>
           </div>
 
-          {/* Bloque Central - Búsqueda y Asistente (Ancho y Dominante) */}
-          <div className="flex-1 max-w-3xl mx-auto flex items-center gap-2 ml-12">
-            {/* Barra de Búsqueda tipo píldora */}
-            <div className="flex-1 relative">
+          {/* SECCIÓN CENTRAL - Buscador + Asistente (flex-1, centrado) */}
+          <div className="flex-1 flex justify-center items-center gap-2 px-4">
+            {/* Input de Búsqueda tipo Píldora */}
+            <div className="relative max-w-xl w-full">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-gray-400" />
               </div>
               <input
                 type="text"
                 placeholder="Buscar..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-full border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               />
             </div>
 
-            {/* Botón Asistente IA pegado a la derecha */}
+            {/* Botón Asistente IA (pegado inmediatamente a la derecha) */}
             <button
               onClick={handleToggleChat}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full font-medium hover:bg-indigo-700 transition-all whitespace-nowrap"
             >
               <Sparkles size={18} />
               <span className="hidden md:inline">Asistente IA</span>
             </button>
           </div>
 
-          {/* Bloque Derecho - Utilidades */}
-          <div className="flex items-center gap-5">
+          {/* SECCIÓN DERECHA - Utilidades (shrink-0) */}
+          <div className="flex items-center gap-4 shrink-0">
             {/* Soporte */}
             <a
               href="#"
@@ -585,7 +585,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
               Soporte
             </a>
 
-            {/* Notificaciones con badge */}
+            {/* Campana Notificación */}
             <button
               className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Notificaciones"
@@ -594,7 +594,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
 
-            {/* Avatar de Usuario */}
+            {/* Avatar Usuario */}
             {user && (
               <div className="flex items-center gap-2">
                 <div className="h-9 w-9 rounded-full bg-gray-800 flex items-center justify-center font-semibold text-white text-sm">
