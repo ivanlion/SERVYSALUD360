@@ -32,10 +32,8 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
         <Sidebar />
         
         {/* Contenido Principal - Columna Derecha (Flexible) */}
-        <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-          <div className="flex-1 w-full pt-8">
-            {children}
-          </div>
+        <main className="flex-1 overflow-y-auto bg-slate-50 p-8">
+          {children}
         </main>
       </div>
     </div>
