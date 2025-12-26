@@ -35,7 +35,7 @@ interface SidebarItem {
 
 const menuItems: SidebarItem[] = [
   {
-    label: 'Panel Principal',
+    label: 'Inicio',
     icon: <LayoutDashboard size={20} />,
     href: '/',
     view: 'DASHBOARD' as const
@@ -123,29 +123,8 @@ export default function Sidebar() {
         `}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center gap-3 px-6 py-6 border-b border-blue-100">
-            <div className="bg-blue-600 text-white p-2 rounded-lg">
-              <Activity size={24} />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-lg text-slate-800 leading-tight">
-                Sistema de Gestión
-              </span>
-              <span className="text-xs text-slate-500 leading-tight">
-                Salud Ocupacional
-              </span>
-            </div>
-          </div>
-
           {/* Menu Items */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-            {/* Subtítulo MÓDULOS DE GESTIÓN */}
-            <div className="px-4 mb-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                MÓDULOS DE GESTIÓN
-              </p>
-            </div>
             {menuItems.map((item) => {
               const isActive = item.view === currentView && currentView !== 'ACCESS_MANAGEMENT';
               const isAdminActive = item.label === 'Administración' && (currentView === 'ACCESS_MANAGEMENT' || currentView === 'DASHBOARD');
