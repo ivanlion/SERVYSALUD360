@@ -136,7 +136,13 @@ export async function updateUser(formData: FormData) {
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
 
     if (userError || !user) {
-      console.error('❌ [updateUser] Usuario no autenticado:', userError?.message);
+      // Verificar si es el error específico "Auth session missing"
+      if (userError?.message?.includes('Auth session missing') || userError?.message?.includes('session missing')) {
+        console.error('❌ [updateUser] Auth session missing - Las cookies no están disponibles');
+        console.error('❌ [updateUser] Asegúrate de que el middleware esté ejecutándose correctamente');
+      } else {
+        console.error('❌ [updateUser] Usuario no autenticado:', userError?.message);
+      }
       return {
         success: false,
         message: 'Usuario no autenticado. Por favor, inicia sesión nuevamente.',
@@ -267,7 +273,13 @@ export async function deleteUser(userId: string) {
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
 
     if (userError || !user) {
-      console.error('❌ [deleteUser] Usuario no autenticado:', userError?.message);
+      // Verificar si es el error específico "Auth session missing"
+      if (userError?.message?.includes('Auth session missing') || userError?.message?.includes('session missing')) {
+        console.error('❌ [deleteUser] Auth session missing - Las cookies no están disponibles');
+        console.error('❌ [deleteUser] Asegúrate de que el middleware esté ejecutándose correctamente');
+      } else {
+        console.error('❌ [deleteUser] Usuario no autenticado:', userError?.message);
+      }
       return {
         success: false,
         message: 'Usuario no autenticado. Por favor, inicia sesión nuevamente.',

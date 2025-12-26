@@ -69,8 +69,18 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Log para debugging (solo en desarrollo)
-  if (error && process.env.NODE_ENV === 'development') {
-    console.warn('⚠️ [middleware] Error al obtener usuario:', error.message);
+  if (error) {
+    // Verificar si es el error específico "Auth session missing"
+    if (error.message?.includes('Auth session missing') || error.message?.includes('session missing')) {
+      console.warn('⚠️ [middleware] Auth session missing - Las cookies no están disponibles o han expirado');
+      console.warn('⚠️ [middleware] Esto puede ocurrir si el usuario no ha iniciado sesión o la sesión expiró');
+    } else if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️ [middleware] Error al obtener usuario:', error.message);
+      console.warn('⚠️ [middleware] Código de error:', error.status);
+    }
+  } else if (user && process.env.NODE_ENV === 'development') {
+    // Log exitoso solo en desarrollo para no saturar logs en producción
+    console.log('✅ [middleware] Sesión válida para usuario:', user.email);
   }
 
   // Devolver la respuesta con las cookies actualizadas
