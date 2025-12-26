@@ -8,7 +8,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -22,8 +22,8 @@ import {
   Activity,
   Users
 } from 'lucide-react';
-import { useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
+import { supabase } from '../lib/supabase';
 
 interface SidebarItem {
   label: string;
@@ -81,7 +81,40 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const { currentView, setCurrentView, isSidebarCollapsed } = useNavigation();
+
+  // Obtener el rol del usuario actual
+  useEffect(() => {
+    const getUserRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Intentar obtener el rol desde la tabla profiles
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('rol, role')
+            .eq('id', user.id)
+            .single();
+          
+          if (profile) {
+            setUserRole(profile.rol || profile.role || null);
+          } else {
+            // Si no hay perfil, obtener desde user_metadata
+            const role = user.user_metadata?.rol || user.user_metadata?.role || null;
+            setUserRole(role);
+          }
+        }
+      } catch (error) {
+        console.error('Error al obtener rol del usuario:', error);
+      }
+    };
+
+    getUserRole();
+  }, []);
+
+  // Verificar si el usuario es administrador
+  const isAdmin = userRole === 'Administrador' || userRole === 'Admin';
 
   // No mostrar sidebar en la página de login
   if (pathname === '/login') {
@@ -92,10 +125,27 @@ export default function Sidebar() {
     if (item.view) {
       setCurrentView(item.view);
     }
-    // Si es "Inicio", siempre navegar a la raíz
-    if (item.label === 'Inicio' || item.view === 'DASHBOARD') {
+    
+    // Navegación según el módulo
+    if (item.label === 'Inicio') {
       router.push('/');
+    } else if (item.label === 'Trabajo Modificado') {
+      router.push('/');
+      setCurrentView('WORK_MODIFIED_DASHBOARD');
+    } else if (item.label === 'Vigilancia Médica') {
+      router.push('/');
+      setCurrentView('DASHBOARD'); // Por ahora lleva al dashboard principal
+    } else if (item.label === 'Seguridad') {
+      router.push('/');
+      setCurrentView('DASHBOARD'); // Por ahora lleva al dashboard principal
+    } else if (item.label === 'Administración') {
+      // Si es administrador, puede acceder directamente
+      if (isAdmin) {
+        router.push('/dashboard/admin');
+        setCurrentView('ACCESS_MANAGEMENT');
+      }
     }
+    
     setIsMobileOpen(false);
   };
 
@@ -142,9 +192,14 @@ export default function Sidebar() {
                 <React.Fragment key={item.label}>
                   <button
                     onClick={() => {
-                      // Si tiene sub-items (Administración), no cambiar vista al hacer clic en el item principal
+                      // Si tiene sub-items (Administración) y es admin, permitir acceso directo
+                      if (item.hasSubItems && isAdmin) {
+                        handleItemClick(item);
+                        return;
+                      }
+                      // Si tiene sub-items pero no es admin, solo mostrar/ocultar sub-items
                       if (item.hasSubItems) {
-                        return; // Solo mostrar/ocultar sub-items
+                        return;
                       }
                       // Para otros items, cambiar la vista normalmente
                       handleItemClick(item);
@@ -157,8 +212,10 @@ export default function Sidebar() {
                           ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
                           : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
                       }
+                      ${!isAdmin && item.label === 'Administración' ? 'opacity-50 cursor-not-allowed' : ''}
                     `}
                     title={isSidebarCollapsed ? item.label : undefined}
+                    disabled={!isAdmin && item.label === 'Administración'}
                   >
                     <span className={isActive || (item.label === 'Administración' && currentView === 'ACCESS_MANAGEMENT') ? 'text-blue-600' : 'text-slate-400'}>
                       {item.icon}
