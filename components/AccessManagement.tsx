@@ -72,7 +72,7 @@ export default function AccessManagement() {
     nombre: '',
     email: '',
     password: '',
-    rol: 'Médico',
+    rol: 'Usuario', // Valor por defecto
   });
 
   // Cargar usuarios de Supabase al montar el componente
@@ -177,7 +177,7 @@ export default function AccessManagement() {
           nombre: '',
           email: '',
           password: '',
-          rol: 'Médico',
+          rol: 'Usuario',
         });
 
         // Cerrar el modal automáticamente después de mostrar éxito
@@ -211,7 +211,7 @@ export default function AccessManagement() {
       nombre: '',
       email: '',
       password: '',
-      rol: 'Médico',
+      rol: 'Usuario',
     });
   };
 
