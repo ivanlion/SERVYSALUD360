@@ -677,44 +677,6 @@ export default function PhysicalAssessmentComponent({ assessment, onChange, read
   return (
     <div className={`space-y-8 animate-in fade-in slide-in-from-right-8 duration-500 ${readOnly ? 'opacity-90 pointer-events-none' : ''}`}>
       
-      {/* 1. MATRIZ DE REQUERIMIENTOS DEL PUESTO */}
-      <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-blue-100 pb-4">
-           <div>
-              <h4 className="text-lg font-bold text-blue-900 flex items-center gap-2">
-                <Briefcase size={20} />
-                1. Evaluación de Requerimientos del Puesto
-              </h4>
-              <p className="text-sm text-slate-500 mt-1">
-                 Identificación de las dimensiones, variables y características según el puesto.
-              </p>
-           </div>
-        </div>
-
-        {/* Legend Above Table 1 */}
-        <div className="mb-6 bg-blue-50/50 rounded-xl border border-blue-100 p-4">
-            <h5 className="text-xs font-bold text-blue-800 mb-3 uppercase tracking-wide">
-                Leyenda de Requerimientos del Puesto:
-            </h5>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {JOB_DEMAND_LEVELS.map((level) => (
-                    <div key={level.id} className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm flex flex-col gap-1">
-                        <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                            {level.label}
-                        </div>
-                        <p className="text-[10px] text-slate-500 leading-tight">
-                            {REQUIREMENT_DEFINITIONS[level.id]}
-                        </p>
-                    </div>
-                ))}
-            </div>
-        </div>
-
-        {/* Matrix Table with new column */}
-        {renderMatrixTable(JOB_MATRIX_STRUCTURE, 'REQUIREMENTS', 'REQUERIMIENTOS', expandedDimensions, expandedReqVars)}
-      </div>
-
       {/* 2. MATRIZ DE CAPACIDADES DEL TRABAJADOR */}
       {showCapacitiesMatrix && (
           <div className="bg-white rounded-xl shadow-sm border border-blue-200 p-6">
