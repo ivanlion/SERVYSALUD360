@@ -15,15 +15,22 @@ type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT' | 'WORK
 interface NavigationContextType {
   currentView: View;
   setCurrentView: (view: View) => void;
+  isSidebarCollapsed: boolean;
+  toggleSidebar: () => void;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
 export function NavigationProvider({ children }: { children: ReactNode }) {
   const [currentView, setCurrentView] = useState<View>('DASHBOARD');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(prev => !prev);
+  };
 
   return (
-    <NavigationContext.Provider value={{ currentView, setCurrentView }}>
+    <NavigationContext.Provider value={{ currentView, setCurrentView, isSidebarCollapsed, toggleSidebar }}>
       {children}
     </NavigationContext.Provider>
   );

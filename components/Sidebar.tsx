@@ -80,7 +80,7 @@ const adminSubItems: SidebarItem[] = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const { currentView, setCurrentView } = useNavigation();
+  const { currentView, setCurrentView, isSidebarCollapsed } = useNavigation();
 
   // No mostrar sidebar en la página de login
   if (pathname === '/login') {
@@ -117,14 +117,15 @@ export default function Sidebar() {
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-40
-          w-64 bg-white border-r border-blue-100
-          transform transition-transform duration-300 ease-in-out
+          bg-white border-r border-blue-100
+          transform transition-all duration-300 ease-in-out
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${isSidebarCollapsed ? 'w-16' : 'w-64'}
         `}
       >
         <div className="flex flex-col h-full">
           {/* Menu Items */}
-          <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
+          <nav className={`flex-1 py-4 space-y-2 overflow-y-auto ${isSidebarCollapsed ? 'px-2' : 'px-4'}`}>
             {menuItems.map((item) => {
               const isActive = item.view === currentView && currentView !== 'ACCESS_MANAGEMENT';
               const isAdminActive = item.label === 'Administración' && (currentView === 'ACCESS_MANAGEMENT' || currentView === 'DASHBOARD');
@@ -140,23 +141,26 @@ export default function Sidebar() {
                       handleItemClick(item);
                     }}
                     className={`
-                      w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left
-                      transition-all duration-200
+                      w-full flex items-center rounded-lg text-left transition-all duration-200
+                      ${isSidebarCollapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3'}
                       ${
                         isActive || (item.label === 'Administración' && currentView === 'ACCESS_MANAGEMENT')
                           ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
                           : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
                       }
                     `}
+                    title={isSidebarCollapsed ? item.label : undefined}
                   >
                     <span className={isActive || (item.label === 'Administración' && currentView === 'ACCESS_MANAGEMENT') ? 'text-blue-600' : 'text-slate-400'}>
                       {item.icon}
                     </span>
-                    <span className="text-sm">{item.label}</span>
+                    {!isSidebarCollapsed && (
+                      <span className="text-sm">{item.label}</span>
+                    )}
                   </button>
                   
-                  {/* Sub-items de Administración - Siempre mostrar cuando Administración está en el menú */}
-                  {item.hasSubItems && (
+                  {/* Sub-items de Administración - Solo mostrar si no está colapsado */}
+                  {item.hasSubItems && !isSidebarCollapsed && (
                     <div className="mt-1 ml-4 space-y-1">
                       {adminSubItems.map((subItem) => {
                         const isSubActive = subItem.view === currentView || pathname === subItem.href;
@@ -195,11 +199,13 @@ export default function Sidebar() {
           </nav>
 
           {/* Footer del Sidebar */}
-          <div className="px-4 py-4 border-t border-blue-100">
-            <p className="text-xs text-slate-500 text-center">
-              © 2025 SGSO
-            </p>
-          </div>
+          {!isSidebarCollapsed && (
+            <div className="px-4 py-4 border-t border-blue-100">
+              <p className="text-xs text-slate-500 text-center">
+                © 2025 SGSO
+              </p>
+            </div>
+          )}
         </div>
       </aside>
     </>

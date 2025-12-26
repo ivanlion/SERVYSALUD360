@@ -145,7 +145,7 @@ type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT';
  */
 export default function Home() {
   const router = useRouter();
-  const { currentView, setCurrentView } = useNavigation();
+  const { currentView, setCurrentView, toggleSidebar } = useNavigation();
   const [cases, setCases] = useState<CaseData[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -528,6 +528,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         <div className="flex items-center gap-3 shrink-0">
           {/* Botón Menú Hamburguesa */}
           <button 
+            onClick={toggleSidebar}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="Toggle sidebar"
           >
