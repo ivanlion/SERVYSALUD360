@@ -24,11 +24,7 @@ export default function AdminPage() {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-slate-50">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
-          <AccessManagement />
-        </div>
-      </div>
+      <AccessManagement />
     </AuthGuard>
   );
 }
