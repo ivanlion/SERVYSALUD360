@@ -58,8 +58,16 @@ export async function getUsers() {
       };
     }
 
-    // Si la tabla profiles existe y tiene datos, usarlos
-    if (!profilesError && profilesData && profilesData.length > 0) {
+    // Si la tabla profiles existe (incluso si está vacía), procesar los datos
+    if (!profilesError && profilesData !== null) {
+      // Si no hay datos, retornar array vacío pero con success: true
+      if (profilesData.length === 0) {
+        return {
+          success: true,
+          message: 'No se encontraron usuarios en la tabla profiles',
+          users: [],
+        };
+      }
       const users = profilesData.map((profile: any) => {
         // Manejar permissions como JSON con niveles de acceso (none, read, write)
         // Compatibilidad: Si viene como boolean, convertir a nivel de acceso

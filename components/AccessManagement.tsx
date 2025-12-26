@@ -123,8 +123,10 @@ export default function AccessManagement() {
           // Cargar usuarios directamente
           const result = await getUsers();
           console.log('🔍 [SuperAdmin] Resultado de getUsers:', result);
-          if (result.success && result.users && result.users.length > 0) {
-            const normalizedUsers: User[] = result.users.map((user: any) => ({
+          if (result.success) {
+            // Procesar usuarios (incluso si el array está vacío o es undefined)
+            const usersArray = result.users || [];
+            const normalizedUsers: User[] = usersArray.map((user: any) => ({
               ...user,
               permissions: {
                 trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
@@ -133,11 +135,11 @@ export default function AccessManagement() {
                 seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
               },
             }));
-            console.log('✅ [SuperAdmin] Usuarios normalizados:', normalizedUsers.length);
+            console.log('✅ [SuperAdmin] Usuarios normalizados:', normalizedUsers.length, normalizedUsers);
             setUsers(normalizedUsers);
             setLocalUsers(normalizedUsers);
           } else {
-            console.warn('⚠️ [SuperAdmin] No se encontraron usuarios o result.success es false:', result);
+            console.error('❌ [SuperAdmin] Error en getUsers:', result.message);
             setUsers([]);
             setLocalUsers([]);
           }
@@ -170,9 +172,16 @@ export default function AccessManagement() {
         setIsCheckingAdmin(false);
 
         // Procesar usuarios solo si es admin
-        console.log('🔍 [Admin] Verificación:', { userIsAdmin, usersResultSuccess: usersResult.success, usersCount: usersResult.users?.length || 0 });
-        if (userIsAdmin && usersResult.success && usersResult.users && usersResult.users.length > 0) {
-          const normalizedUsers: User[] = usersResult.users.map((user: any) => ({
+        console.log('🔍 [Admin] Verificación:', { 
+          userIsAdmin, 
+          usersResultSuccess: usersResult.success, 
+          usersCount: usersResult.users?.length || 0,
+          usersResult: usersResult 
+        });
+        if (userIsAdmin && usersResult.success) {
+          // Procesar usuarios (incluso si el array está vacío o es undefined)
+          const usersArray = usersResult.users || [];
+          const normalizedUsers: User[] = usersArray.map((user: any) => ({
             ...user,
             permissions: {
               trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
@@ -181,11 +190,16 @@ export default function AccessManagement() {
               seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
             },
           }));
-          console.log('✅ [Admin] Usuarios normalizados:', normalizedUsers.length);
+          console.log('✅ [Admin] Usuarios normalizados:', normalizedUsers.length, normalizedUsers);
           setUsers(normalizedUsers);
           setLocalUsers(normalizedUsers);
         } else {
-          console.warn('⚠️ [Admin] No se establecieron usuarios:', { userIsAdmin, success: usersResult.success, users: usersResult.users?.length || 0 });
+          console.warn('⚠️ [Admin] No se establecieron usuarios:', { 
+            userIsAdmin, 
+            success: usersResult.success, 
+            users: usersResult.users?.length || 0,
+            usersResult 
+          });
           setUsers([]);
           setLocalUsers([]);
         }
