@@ -1,13 +1,14 @@
 /**
- * Cliente de Supabase para la aplicación
+ * Cliente de Supabase para la aplicación (Browser)
  * 
- * Configuración del cliente de Supabase usando las variables de entorno
- * NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY
+ * IMPORTANTE: Usa createBrowserClient de @supabase/ssr para gestionar
+ * correctamente las cookies en el navegador. Esto es necesario para que
+ * las cookies se guarden correctamente y el middleware pueda leerlas.
  * 
  * @module lib/supabase
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -24,21 +25,15 @@ if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
 }
 
 /**
- * Cliente de Supabase exportado para uso en toda la aplicación
+ * Cliente de Supabase exportado para uso en componentes del cliente
+ * 
+ * Usa createBrowserClient de @supabase/ssr para:
+ * - Gestionar cookies automáticamente en el navegador
+ * - Sincronizar con el middleware del servidor
+ * - Permitir que las cookies persistan entre recargas
  * 
  * @throws {Error} Si las credenciales no están configuradas correctamente
  */
-/**
- * Cliente de Supabase exportado para uso en toda la aplicación
- * 
- * @throws {Error} Si las credenciales no están configuradas correctamente
- */
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true, // Persistir sesión para autenticación
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
 

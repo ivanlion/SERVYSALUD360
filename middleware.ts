@@ -5,66 +5,13 @@
  * de autenticación de Supabase, permitiendo que las Server Actions
  * puedan leer correctamente la sesión del usuario.
  * 
+ * NOTA: Ignorar el aviso de 'proxy' - Supabase requiere el middleware estándar.
+ * 
  * @module middleware
  */
 
-import { createServerClient } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/server';
-
-/**
- * Actualiza la sesión de Supabase en cada request
- * 
- * Crea un cliente de Supabase que lee y escribe cookies,
- * ejecuta getUser() para refrescar la sesión si es necesario,
- * y devuelve la respuesta con las cookies actualizadas.
- * 
- * @param request - Request de Next.js
- * @returns Response con cookies actualizadas
- */
-async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value);
-          });
-          supabaseResponse = NextResponse.next({
-            request,
-          });
-          cookiesToSet.forEach(({ name, value, options }) => {
-            supabaseResponse.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-
-  // IMPORTANTE: Ejecutar getUser() para refrescar la sesión
-  // Esto actualiza las cookies si el token necesita ser renovado
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  // Si hay un error de autenticación, podemos manejarlo aquí
-  // Por ahora, simplemente continuamos con la respuesta
-  if (error) {
-    console.warn('⚠️ [middleware] Error al obtener usuario:', error.message);
-  }
-
-  // Devolver la respuesta con las cookies actualizadas
-  return supabaseResponse;
-}
+import { type NextRequest } from 'next/server';
+import { updateSession } from './utils/supabase/middleware';
 
 /**
  * Middleware de Next.js

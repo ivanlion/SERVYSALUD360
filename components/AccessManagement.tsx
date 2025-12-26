@@ -160,9 +160,9 @@ export default function AccessManagement() {
     const newValue = !currentUser.permissions[permissionKey];
     const updateKey = `${userId}-${permissionKey}`;
 
-    // Envolvemos todo en startTransition para satisfacer a React 19
+    // Envolvemos TODO en startTransition para satisfacer a React 19
     startTransition(async () => {
-      // 1. UI Instantánea (Optimistic Update)
+      // A. Actualización optimista (Visual inmediata)
       setOptimisticUsers({ userId, permissionKey, newValue });
 
       // Actualizar estado local también
@@ -183,7 +183,7 @@ export default function AccessManagement() {
       // Marcar como actualizando
       setUpdatingPermissions(prev => new Set(prev).add(updateKey));
 
-      // 2. Llamada real al Servidor
+      // B. Llamada real al servidor
       try {
         const result = await togglePermission(userId, permissionKey, newValue);
 
@@ -211,7 +211,7 @@ export default function AccessManagement() {
           });
         }
       } catch (error: any) {
-        console.error('Error al guardar permiso:', error);
+        console.error('Error guardando permiso:', error);
         // Revertir cambio optimista
         setUsers(prevUsers =>
           prevUsers.map(user =>
