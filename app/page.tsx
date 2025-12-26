@@ -540,10 +540,14 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
             <Activity className="h-5 w-5" />
           </div>
           
-          {/* Título */}
+          {/* Título - Siempre lleva al módulo INICIO */}
           <div 
             className="cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => setCurrentView('DASHBOARD')}
+            onClick={() => {
+              setCurrentView('DASHBOARD');
+              // Asegurar que siempre vaya al Dashboard principal
+              router.push('/');
+            }}
           >
             <span className="text-lg font-bold text-gray-900 whitespace-nowrap">
               Sistema de Gestión de Salud Ocupacional
