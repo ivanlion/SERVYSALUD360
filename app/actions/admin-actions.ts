@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createServerClient, createAdminClient } from '../../lib/supabase-server';
+import { isSuperAdmin, isAdminUser } from '../../utils/auth-helpers';
 
 /**
  * Verifica si el usuario actual es administrador usando el patrón de Doble Cliente
@@ -151,7 +152,7 @@ export async function updateUser(formData: FormData) {
 
     console.log('✅ [updateUser] Usuario identificado:', { id: user.id, email: user.email });
 
-    // Verificar que el usuario actual sea administrador
+    // Verificar que el usuario actual sea administrador (incluye Super Admin)
     const supabaseAdmin = createAdminClient();
     
     const { data: currentUserProfile, error: profileError } = await supabaseAdmin
@@ -163,15 +164,19 @@ export async function updateUser(formData: FormData) {
     // Verificar rol desde profiles o user_metadata
     const role = currentUserProfile?.rol || currentUserProfile?.role || 
                  user.user_metadata?.rol || user.user_metadata?.role || '';
-    const roleLower = role?.toLowerCase() || '';
-    const isAdmin = roleLower === 'admin' || 
-                   role === 'Administrador' || 
-                   role === 'Admin' ||
-                   roleLower === 'administrador';
+    
+    // Usar helpers que reconocen Super Admin
+    const userIsAdmin = isAdminUser(user.email, role);
+    const userIsSuperAdmin = isSuperAdmin(user.email);
 
-    console.log('🔍 [updateUser] Verificación de admin:', { role, roleLower, isAdmin });
+    console.log('🔍 [updateUser] Verificación de admin:', { 
+      email: user.email, 
+      role, 
+      userIsSuperAdmin,
+      userIsAdmin 
+    });
 
-    if (!isAdmin) {
+    if (!userIsAdmin) {
       return {
         success: false,
         message: 'No tienes permisos para realizar esta acción. Solo los administradores pueden editar usuarios.',
@@ -296,7 +301,7 @@ export async function deleteUser(userId: string) {
       };
     }
 
-    // Verificar que el usuario actual sea administrador
+    // Verificar que el usuario actual sea administrador (incluye Super Admin)
     const supabaseAdmin = createAdminClient();
     
     const { data: currentUserProfile, error: profileError } = await supabaseAdmin
@@ -308,15 +313,19 @@ export async function deleteUser(userId: string) {
     // Verificar rol desde profiles o user_metadata
     const role = currentUserProfile?.rol || currentUserProfile?.role || 
                  user.user_metadata?.rol || user.user_metadata?.role || '';
-    const roleLower = role?.toLowerCase() || '';
-    const isAdmin = roleLower === 'admin' || 
-                   role === 'Administrador' || 
-                   role === 'Admin' ||
-                   roleLower === 'administrador';
+    
+    // Usar helpers que reconocen Super Admin
+    const userIsAdmin = isAdminUser(user.email, role);
+    const userIsSuperAdmin = isSuperAdmin(user.email);
 
-    console.log('🔍 [deleteUser] Verificación de admin:', { role, roleLower, isAdmin });
+    console.log('🔍 [deleteUser] Verificación de admin:', { 
+      email: user.email, 
+      role, 
+      userIsSuperAdmin,
+      userIsAdmin 
+    });
 
-    if (!isAdmin) {
+    if (!userIsAdmin) {
       return {
         success: false,
         message: 'No tienes permisos para realizar esta acción. Solo los administradores pueden eliminar usuarios.',
