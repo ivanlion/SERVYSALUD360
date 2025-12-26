@@ -522,39 +522,33 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
   return (
     <AuthGuard>
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Navbar - Rediseño Moderno 3 Columnas */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 h-16">
+      {/* Navbar - Estructura Estricta 3 Bloques */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full h-16">
         <div className="flex items-center justify-between px-6 h-full">
-          {/* Sección Izquierda - Identidad */}
+          {/* Bloque Izquierdo - Identidad */}
           <div className="flex items-center gap-3">
-            {/* Botón hamburguesa para móvil (opcional, puede ocultarse en desktop) */}
+            {/* Botón hamburguesa para sidebar */}
             <button 
-              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               aria-label="Toggle sidebar"
             >
               <Menu size={20} className="text-gray-600" />
             </button>
             
-            {/* Logo y Título */}
+            {/* Título corto y limpio */}
             <div 
-              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+              className="cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setCurrentView('DASHBOARD')}
             >
-              <div className="bg-blue-600 text-white p-1.5 rounded-lg">
-                <Activity className="h-5 w-5" />
-              </div>
-              <span className="font-bold text-lg text-gray-900 hidden sm:inline">
-                Sistema de Gestión de Salud Ocupacional
-              </span>
-              <span className="font-bold text-lg text-gray-900 sm:hidden">
+              <span className="font-bold text-lg text-gray-900">
                 SGSO
               </span>
             </div>
           </div>
 
-          {/* Sección Central - Búsqueda y Asistente IA */}
-          <div className="flex-1 max-w-2xl mx-auto flex items-center gap-3 px-4">
-            {/* Barra de Búsqueda */}
+          {/* Bloque Central - Búsqueda y Asistente (Ancho y Dominante) */}
+          <div className="flex-1 max-w-3xl mx-auto flex items-center gap-2">
+            {/* Barra de Búsqueda tipo píldora */}
             <div className="flex-1 relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-gray-400" />
@@ -566,27 +560,27 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
               />
             </div>
 
-            {/* Botón Asistente IA */}
+            {/* Botón Asistente IA pegado a la derecha */}
             <button
               onClick={handleToggleChat}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-medium hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg whitespace-nowrap"
             >
               <Sparkles size={18} />
               <span className="hidden md:inline">Asistente IA</span>
             </button>
           </div>
 
-          {/* Sección Derecha - Usuario y Utilidades */}
-          <div className="flex items-center gap-6">
+          {/* Bloque Derecho - Utilidades */}
+          <div className="flex items-center gap-5">
             {/* Soporte */}
             <a
               href="#"
-              className="text-gray-700 hover:text-gray-900 font-medium text-sm transition-colors hidden md:block"
+              className="text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors"
             >
               Soporte
             </a>
 
-            {/* Notificaciones */}
+            {/* Notificaciones con badge */}
             <button
               className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
               aria-label="Notificaciones"
@@ -595,10 +589,10 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
 
-            {/* Perfil de Usuario - Avatar */}
+            {/* Avatar de Usuario */}
             {user && (
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-semibold text-gray-700 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-full bg-gray-800 flex items-center justify-center font-semibold text-white text-sm">
                   {(() => {
                     if (!user.email) return 'U';
                     const emailParts = user.email.split('@')[0];
