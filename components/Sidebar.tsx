@@ -265,16 +265,18 @@ export default function Sidebar() {
               }
 
               // Lógica mejorada para determinar si un item está activo
-              // Para módulos normales (Inicio, Trabajo Modificado, Vigilancia, Seguridad)
-              const isNormalModuleActive = item.view === currentView && 
-                (currentView === 'DASHBOARD' || currentView === 'WORK_MODIFIED_DASHBOARD');
+              // Solo "Inicio" debe estar activo cuando currentView === 'DASHBOARD'
+              const isInicioActive = item.label === 'Inicio' && currentView === 'DASHBOARD';
+              
+              // Solo "Trabajo Modificado" debe estar activo cuando currentView === 'WORK_MODIFIED_DASHBOARD'
+              const isTrabajoModificadoActive = item.label === 'Trabajo Modificado' && currentView === 'WORK_MODIFIED_DASHBOARD';
               
               // Para Administración
               const isAdminActive = item.label === 'Administración' && 
                 (currentView === 'ACCESS_MANAGEMENT' || pathname === '/dashboard/admin');
               
-              // Determinar si el item está activo
-              const isActive = isNormalModuleActive || isAdminActive;
+              // Determinar si el item está activo (solo uno puede estar activo a la vez)
+              const isActive = isInicioActive || isTrabajoModificadoActive || isAdminActive;
               
               return (
                 <React.Fragment key={item.label}>
