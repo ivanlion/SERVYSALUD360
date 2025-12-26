@@ -72,7 +72,7 @@ const adminSubItems: SidebarItem[] = [
   {
     label: 'Gestión de Usuarios',
     icon: <Users size={20} />,
-    href: '/',
+    href: '/dashboard/admin',
     view: 'ACCESS_MANAGEMENT' as const
   }
 ];
@@ -180,11 +180,17 @@ export default function Sidebar() {
                   {item.hasSubItems && (
                     <div className="mt-1 ml-4 space-y-1">
                       {adminSubItems.map((subItem) => {
-                        const isSubActive = subItem.view === currentView;
+                        const isSubActive = subItem.view === currentView || pathname === subItem.href;
                         return (
-                          <button
+                          <Link
                             key={subItem.label}
-                            onClick={() => handleItemClick(subItem)}
+                            href={subItem.href}
+                            onClick={() => {
+                              if (subItem.view) {
+                                setCurrentView(subItem.view);
+                              }
+                              setIsMobileOpen(false);
+                            }}
                             className={`
                               w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left
                               transition-all duration-200
@@ -199,7 +205,7 @@ export default function Sidebar() {
                               {subItem.icon}
                             </span>
                             <span className="text-sm">{subItem.label}</span>
-                          </button>
+                          </Link>
                         );
                       })}
                     </div>
