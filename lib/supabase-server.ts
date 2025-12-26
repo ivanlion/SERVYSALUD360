@@ -1,16 +1,19 @@
 /**
  * Helper para crear cliente de Supabase en Server Actions
- * Maneja las cookies correctamente para autenticación
+ * Maneja las cookies correctamente para autenticación usando @supabase/ssr
  * 
  * @module lib/supabase-server
  */
 
+import { createServerClient as createSupabaseServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 /**
  * Crea un cliente de Supabase que puede leer las cookies de la sesión
  * Útil para Server Actions que necesitan verificar la identidad del usuario
+ * 
+ * Usa @supabase/ssr para manejar las cookies correctamente en Server Actions
  * 
  * @returns Cliente de Supabase configurado con cookies
  */
@@ -24,20 +27,27 @@ export async function createServerClient() {
 
   const cookieStore = await cookies();
 
-  // Crear cliente con configuración para leer cookies
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-    global: {
-      headers: {
-        // Pasar todas las cookies al cliente
-        Cookie: cookieStore.getAll().map(c => `${c.name}=${c.value}`).join('; '),
+  // Crear cliente usando @supabase/ssr para manejar cookies correctamente
+  const supabase = createSupabaseServerClient(
+    supabaseUrl,
+    supabaseAnonKey,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          // En Server Actions, no podemos escribir cookies directamente
+          // pero podemos leerlas para verificar la sesión
+          // El middleware se encarga de actualizar las cookies
+          cookiesToSet.forEach(({ name, value }) => {
+            // Solo log para debugging, no podemos escribir en Server Actions
+            console.log(`[createServerClient] Cookie que se intentaría establecer: ${name}`);
+          });
+        },
       },
-    },
-  });
+    }
+  );
 
   return supabase;
 }
