@@ -15,6 +15,7 @@ import { getUsers } from '../app/actions/get-users';
 import { updatePermissionLevel } from '../app/actions/update-permission-level';
 import { updateUser, deleteUser } from '../app/actions/admin-actions';
 import { supabase } from '../lib/supabase';
+import { isSuperAdmin, isAdminUser } from '../utils/auth-helpers';
 
 export type PermissionLevel = 'none' | 'read' | 'write';
 
@@ -136,14 +137,14 @@ export default function AccessManagement() {
           
           if (profile) {
             const role = profile.rol || profile.role || '';
-            const userIsAdmin = role?.toLowerCase() === 'admin' || 
-                              role === 'Administrador' || 
-                              role === 'Admin' ||
-                              role?.toLowerCase() === 'administrador';
+            // Usar helper que incluye verificación de Super Admin
+            const userIsAdmin = isAdminUser(user.email, role);
             
             console.log('🔍 [AccessManagement] Verificación de rol:', {
+              email: user.email,
               role,
               roleLower: role?.toLowerCase(),
+              isSuperAdmin: isSuperAdmin(user.email),
               userIsAdmin,
             });
             
@@ -151,14 +152,14 @@ export default function AccessManagement() {
           } else {
             // Si no hay perfil, verificar en user_metadata
             const role = user.user_metadata?.rol || user.user_metadata?.role || '';
-            const userIsAdmin = role?.toLowerCase() === 'admin' || 
-                              role === 'Administrador' || 
-                              role === 'Admin' ||
-                              role?.toLowerCase() === 'administrador';
+            // Usar helper que incluye verificación de Super Admin
+            const userIsAdmin = isAdminUser(user.email, role);
             
             console.log('🔍 [AccessManagement] Verificación desde user_metadata:', {
+              email: user.email,
               role,
               roleLower: role?.toLowerCase(),
+              isSuperAdmin: isSuperAdmin(user.email),
               userIsAdmin,
               user_metadata: user.user_metadata,
             });
@@ -688,8 +689,8 @@ export default function AccessManagement() {
             {/* Cuerpo de Tabla */}
             <tbody className="divide-y divide-gray-100">
               {optimisticUsers.map((user) => {
-                // Verificar si el usuario es administrador
-                const isAdmin = user.role === 'Administrador' || user.role === 'Admin';
+                // Verificar si el usuario es administrador (incluye Super Admin)
+                const isAdmin = isAdminUser(user.email, user.role);
                 
                 // Para administradores, todos los permisos son 'write' y deshabilitados
                 const getPermissionLevel = (key: keyof User['permissions']): PermissionLevel => {
@@ -722,7 +723,13 @@ export default function AccessManagement() {
                             : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer'
                           }
                         `}
-                        title={isAdmin ? 'Los administradores tienen acceso total' : `Cambiar nivel de acceso para ${label}`}
+                        title={
+                          isAdmin 
+                            ? isSuperAdmin(user.email) 
+                              ? 'Super Administrador: Acceso total garantizado' 
+                              : 'Los administradores tienen acceso total'
+                            : `Cambiar nivel de acceso para ${label}`
+                        }
                       >
                         <option value="none">
                           🔴 Sin Acceso

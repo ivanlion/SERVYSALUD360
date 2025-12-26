@@ -16,6 +16,7 @@ import AuthGuard from '../../../components/AuthGuard';
 import { useNavigation } from '../../../contexts/NavigationContext';
 import { supabase } from '../../../lib/supabase';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { isSuperAdmin, isAdminUser } from '../../../utils/auth-helpers';
 
 export default function AdminPage() {
   const { setCurrentView } = useNavigation();
@@ -44,10 +45,8 @@ export default function AdminPage() {
         
         if (profile) {
           const role = profile.rol || profile.role || '';
-          const userIsAdmin = role?.toLowerCase() === 'admin' || 
-                            role === 'Administrador' || 
-                            role === 'Admin' ||
-                            role?.toLowerCase() === 'administrador';
+          // Usar helper que incluye verificación de Super Admin
+          const userIsAdmin = isAdminUser(user.email, role);
           setIsAdmin(userIsAdmin);
           
           if (!userIsAdmin) {
@@ -58,10 +57,8 @@ export default function AdminPage() {
         } else {
           // Si no hay perfil, verificar en user_metadata
           const role = user.user_metadata?.rol || user.user_metadata?.role || '';
-          const userIsAdmin = role?.toLowerCase() === 'admin' || 
-                            role === 'Administrador' || 
-                            role === 'Admin' ||
-                            role?.toLowerCase() === 'administrador';
+          // Usar helper que incluye verificación de Super Admin
+          const userIsAdmin = isAdminUser(user.email, role);
           setIsAdmin(userIsAdmin);
           
           if (!userIsAdmin) {
