@@ -525,8 +525,8 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
       {/* Navbar - Estructura Estricta 3 Bloques */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full h-16">
         <div className="flex items-center justify-between px-6 h-full">
-          {/* Bloque Izquierdo - Identidad Unificada */}
-          <div className="flex items-center gap-3">
+          {/* Bloque Izquierdo - Identidad Unificada (Sólido y Estable) */}
+          <div className="flex items-center gap-4 min-w-fit">
             {/* 1. Botón hamburguesa */}
             <button 
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
@@ -540,7 +540,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
               <Activity className="h-5 w-5" />
             </div>
             
-            {/* 3. Título Completo */}
+            {/* 3. Título Completo (whitespace-nowrap obligatorio) */}
             <div 
               className="cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0"
               onClick={() => setCurrentView('DASHBOARD')}
@@ -552,7 +552,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
           </div>
 
           {/* Bloque Central - Búsqueda y Asistente (Ancho y Dominante) */}
-          <div className="flex-1 max-w-3xl mx-auto flex items-center gap-2">
+          <div className="flex-1 max-w-3xl mx-auto flex items-center gap-2 ml-12">
             {/* Barra de Búsqueda tipo píldora */}
             <div className="flex-1 relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
