@@ -224,6 +224,11 @@ export default function Sidebar() {
           {/* Menu Items */}
           <nav className={`flex-1 py-4 space-y-2 overflow-y-auto ${isSidebarCollapsed ? 'px-2' : 'px-4'}`}>
             {menuItems.map((item) => {
+              // Ocultar completamente el módulo "Administración" si no es admin
+              if (item.label === 'Administración' && !isAdmin) {
+                return null;
+              }
+
               // Lógica mejorada para determinar si un item está activo
               const isActive = item.view === currentView && 
                 (currentView !== 'ACCESS_MANAGEMENT' || item.label === 'Administración');
@@ -239,7 +244,7 @@ export default function Sidebar() {
                         handleItemClick(item);
                         return;
                       }
-                      // Si tiene sub-items pero no es admin, solo mostrar/ocultar sub-items
+                      // Si tiene sub-items pero no es admin, no debería llegar aquí (ya está oculto)
                       if (item.hasSubItems) {
                         return;
                       }
@@ -254,10 +259,8 @@ export default function Sidebar() {
                           ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
                           : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-600'
                       }
-                      ${!isAdmin && item.label === 'Administración' ? 'opacity-50 cursor-not-allowed' : ''}
                     `}
                     title={isSidebarCollapsed ? item.label : undefined}
-                    disabled={!isAdmin && item.label === 'Administración'}
                   >
                     <span className={isActive || (item.label === 'Administración' && currentView === 'ACCESS_MANAGEMENT') ? 'text-blue-600' : 'text-slate-400'}>
                       {item.icon}
@@ -267,8 +270,8 @@ export default function Sidebar() {
                     )}
                   </button>
                   
-                  {/* Sub-items de Administración - Solo mostrar si no está colapsado */}
-                  {item.hasSubItems && !isSidebarCollapsed && (
+                  {/* Sub-items de Administración - Solo mostrar si es admin y no está colapsado */}
+                  {item.hasSubItems && !isSidebarCollapsed && isAdmin && (
                     <div className="mt-1 ml-4 space-y-1">
                       {adminSubItems.map((subItem) => {
                         const isSubActive = subItem.view === currentView || pathname === subItem.href;

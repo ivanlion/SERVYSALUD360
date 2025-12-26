@@ -9,18 +9,114 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AccessManagement from '../../../components/AccessManagement';
 import AuthGuard from '../../../components/AuthGuard';
 import { useNavigation } from '../../../contexts/NavigationContext';
+import { supabase } from '../../../lib/supabase';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function AdminPage() {
   const { setCurrentView } = useNavigation();
+  const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState<boolean>(true);
+
+  // Verificar si el usuario es administrador
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      setIsCheckingAdmin(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          router.push('/login');
+          return;
+        }
+
+        // Verificar si el usuario es administrador
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('rol, role')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          const role = profile.rol || profile.role || '';
+          const userIsAdmin = role?.toLowerCase() === 'admin' || 
+                            role === 'Administrador' || 
+                            role === 'Admin' ||
+                            role?.toLowerCase() === 'administrador';
+          setIsAdmin(userIsAdmin);
+          
+          if (!userIsAdmin) {
+            // Si no es admin, redirigir al dashboard principal
+            router.push('/');
+            return;
+          }
+        } else {
+          // Si no hay perfil, verificar en user_metadata
+          const role = user.user_metadata?.rol || user.user_metadata?.role || '';
+          const userIsAdmin = role?.toLowerCase() === 'admin' || 
+                            role === 'Administrador' || 
+                            role === 'Admin' ||
+                            role?.toLowerCase() === 'administrador';
+          setIsAdmin(userIsAdmin);
+          
+          if (!userIsAdmin) {
+            router.push('/');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error al verificar permisos de administrador:', error);
+        router.push('/');
+      } finally {
+        setIsCheckingAdmin(false);
+      }
+    };
+
+    checkAdminAccess();
+  }, [router]);
 
   // Actualizar el estado de navegación cuando se carga esta página
   useEffect(() => {
-    setCurrentView('ACCESS_MANAGEMENT');
-  }, [setCurrentView]);
+    if (isAdmin) {
+      setCurrentView('ACCESS_MANAGEMENT');
+    }
+  }, [setCurrentView, isAdmin]);
+
+  // Mostrar loading mientras se verifica
+  if (isCheckingAdmin) {
+    return (
+      <AuthGuard>
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="animate-spin text-indigo-600" size={48} />
+            <p className="text-lg font-semibold text-slate-600">Verificando permisos...</p>
+          </div>
+        </div>
+      </AuthGuard>
+    );
+  }
+
+  // Si no es admin, no debería llegar aquí (ya fue redirigido), pero por seguridad mostrar mensaje
+  if (!isAdmin) {
+    return (
+      <AuthGuard>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
+          <AlertCircle className="mx-auto text-red-600 mb-4" size={48} />
+          <h2 className="text-2xl font-bold text-red-800 mb-2">
+            Acceso Denegado
+          </h2>
+          <p className="text-red-600">
+            No tienes permiso para acceder a esta página.
+          </p>
+        </div>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard>

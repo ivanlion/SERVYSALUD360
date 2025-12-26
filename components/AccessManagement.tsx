@@ -75,6 +75,8 @@ export default function AccessManagement() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [updatingPermissions, setUpdatingPermissions] = useState<Set<string>>(new Set());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState<boolean>(true);
   
   // useTransition para envolver actualizaciones optimistas
   const [isPending, startTransition] = useTransition();
@@ -105,16 +107,46 @@ export default function AccessManagement() {
     rol: 'Usuario', // Valor por defecto
   });
 
-  // Obtener el usuario actual
+  // Obtener el usuario actual y verificar si es administrador
   useEffect(() => {
     const getCurrentUser = async () => {
+      setIsCheckingAdmin(true);
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setCurrentUserId(user.id);
+          
+          // Verificar si el usuario es administrador
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('rol, role')
+            .eq('id', user.id)
+            .single();
+          
+          if (profile) {
+            const role = profile.rol || profile.role || '';
+            const userIsAdmin = role?.toLowerCase() === 'admin' || 
+                              role === 'Administrador' || 
+                              role === 'Admin' ||
+                              role?.toLowerCase() === 'administrador';
+            setIsAdmin(userIsAdmin);
+          } else {
+            // Si no hay perfil, verificar en user_metadata
+            const role = user.user_metadata?.rol || user.user_metadata?.role || '';
+            const userIsAdmin = role?.toLowerCase() === 'admin' || 
+                              role === 'Administrador' || 
+                              role === 'Admin' ||
+                              role?.toLowerCase() === 'administrador';
+            setIsAdmin(userIsAdmin);
+          }
+        } else {
+          setIsAdmin(false);
         }
       } catch (error) {
         console.error('Error al obtener usuario actual:', error);
+        setIsAdmin(false);
+      } finally {
+        setIsCheckingAdmin(false);
       }
     };
 
@@ -528,6 +560,38 @@ export default function AccessManagement() {
       rol: 'Usuario',
     });
   };
+
+  // Si está verificando permisos, mostrar loading
+  if (isCheckingAdmin) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-indigo-600" size={48} />
+          <p className="text-lg font-semibold text-slate-600">Verificando permisos...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no es administrador, mostrar mensaje de acceso denegado
+  if (!isAdmin) {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
+          <AlertCircle className="mx-auto text-red-600 mb-4" size={48} />
+          <h2 className="text-2xl font-bold text-red-800 mb-2">
+            Acceso Denegado
+          </h2>
+          <p className="text-red-600 mb-4">
+            No tienes permiso para acceder a este módulo.
+          </p>
+          <p className="text-sm text-red-500">
+            Solo los administradores pueden gestionar los accesos de usuarios.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
