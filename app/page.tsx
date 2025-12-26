@@ -525,23 +525,28 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
       {/* Navbar - Estructura Estricta 3 Bloques */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full h-16">
         <div className="flex items-center justify-between px-6 h-full">
-          {/* Bloque Izquierdo - Identidad */}
+          {/* Bloque Izquierdo - Identidad Unificada */}
           <div className="flex items-center gap-3">
-            {/* Botón hamburguesa para sidebar */}
+            {/* 1. Botón hamburguesa */}
             <button 
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
               aria-label="Toggle sidebar"
             >
               <Menu size={20} className="text-gray-600" />
             </button>
             
-            {/* Título corto y limpio */}
+            {/* 2. Logo */}
+            <div className="bg-blue-600 text-white p-1.5 rounded-lg flex-shrink-0">
+              <Activity className="h-5 w-5" />
+            </div>
+            
+            {/* 3. Título Completo */}
             <div 
-              className="cursor-pointer hover:opacity-80 transition-opacity"
+              className="cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0"
               onClick={() => setCurrentView('DASHBOARD')}
             >
-              <span className="font-bold text-lg text-gray-900">
-                SGSO
+              <span className="font-bold text-lg text-gray-900 whitespace-nowrap">
+                Sistema de Gestión de Salud Ocupacional
               </span>
             </div>
           </div>
