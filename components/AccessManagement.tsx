@@ -96,88 +96,76 @@ export default function AccessManagement() {
     rol: 'Usuario', // Valor por defecto
   });
 
-  // Obtener el usuario actual y verificar si es administrador
+  // Optimización: Verificar admin y cargar usuarios en paralelo para mejor rendimiento
   useEffect(() => {
-    const getCurrentUser = async () => {
+    const initializeData = async () => {
       setIsCheckingAdmin(true);
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setCurrentUserId(user.id);
-          
-          console.log('🔍 [AccessManagement] Verificando rol de administrador para:', {
-            userId: user.id,
-            email: user.email,
-            user_metadata: user.user_metadata,
-          });
-          
-          // Verificar si el usuario es administrador
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('rol, role, id, email')
-            .eq('id', user.id)
-            .single();
-          
-          console.log('🔍 [AccessManagement] Perfil encontrado:', {
-            profile,
-            profileError: profileError?.message,
-          });
-          
-          if (profile) {
-            const role = profile.rol || profile.role || '';
-            // Usar helper que incluye verificación de Super Admin
-            const userIsAdmin = isAdminUser(user.email, role);
-            
-            console.log('🔍 [AccessManagement] Verificación de rol:', {
-              email: user.email,
-              role,
-              roleLower: role?.toLowerCase(),
-              isSuperAdmin: isSuperAdmin(user.email),
-              userIsAdmin,
-            });
-            
-            setIsAdmin(userIsAdmin);
-          } else {
-            // Si no hay perfil, verificar en user_metadata
-            const role = user.user_metadata?.rol || user.user_metadata?.role || '';
-            // Usar helper que incluye verificación de Super Admin
-            const userIsAdmin = isAdminUser(user.email, role);
-            
-            console.log('🔍 [AccessManagement] Verificación desde user_metadata:', {
-              email: user.email,
-              role,
-              roleLower: role?.toLowerCase(),
-              isSuperAdmin: isSuperAdmin(user.email),
-              userIsAdmin,
-              user_metadata: user.user_metadata,
-            });
-            
-            setIsAdmin(userIsAdmin);
-          }
-        } else {
-          console.log('⚠️ [AccessManagement] No se encontró usuario autenticado');
-          setIsAdmin(false);
-        }
-      } catch (error) {
-        console.error('❌ [AccessManagement] Error al obtener usuario actual:', error);
-        setIsAdmin(false);
-      } finally {
-        setIsCheckingAdmin(false);
-      }
-    };
-
-    getCurrentUser();
-  }, []);
-
-  // Cargar usuarios de Supabase al montar el componente
-  useEffect(() => {
-    const loadUsers = async () => {
       setIsLoadingUsers(true);
+      
       try {
-        const result = await getUsers();
-        if (result.success) {
-          // Normalizar permisos a PermissionLevel
-          const normalizedUsers: User[] = result.users.map((user: any) => ({
+        // Obtener usuario actual (rápido)
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          setIsAdmin(false);
+          setIsCheckingAdmin(false);
+          setIsLoadingUsers(false);
+          return;
+        }
+
+        setCurrentUserId(user.id);
+        
+        // Verificación rápida de Super Admin (sin consulta a BD)
+        if (isSuperAdmin(user.email)) {
+          setIsAdmin(true);
+          setIsCheckingAdmin(false);
+          
+          // Cargar usuarios directamente
+          const result = await getUsers();
+          if (result.success) {
+            const normalizedUsers: User[] = result.users.map((user: any) => ({
+              ...user,
+              permissions: {
+                trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+                vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+                seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+                seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+              },
+            }));
+            setUsers(normalizedUsers);
+            setLocalUsers(normalizedUsers);
+          }
+          setIsLoadingUsers(false);
+          return;
+        }
+        
+        // Para otros usuarios, ejecutar verificación de admin y carga de usuarios en paralelo
+        const [profileResult, usersResult] = await Promise.all([
+          (async () => {
+            try {
+              const { data, error } = await supabase
+                .from('profiles')
+                .select('rol, role')
+                .eq('id', user.id)
+                .single();
+              return { data, error };
+            } catch {
+              return { data: null, error: null };
+            }
+          })(),
+          getUsers()
+        ]);
+
+        // Procesar verificación de admin
+        const profile = profileResult.data;
+        const role = profile?.rol || profile?.role || user.user_metadata?.rol || user.user_metadata?.role || '';
+        const userIsAdmin = isAdminUser(user.email, role);
+        setIsAdmin(userIsAdmin);
+        setIsCheckingAdmin(false);
+
+        // Procesar usuarios solo si es admin
+        if (userIsAdmin && usersResult.success) {
+          const normalizedUsers: User[] = usersResult.users.map((user: any) => ({
             ...user,
             permissions: {
               trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
@@ -187,22 +175,23 @@ export default function AccessManagement() {
             },
           }));
           setUsers(normalizedUsers);
-          setLocalUsers(normalizedUsers); // Inicializar usuarios locales
-          console.log(`✅ ${normalizedUsers.length} usuarios cargados desde Supabase`);
+          setLocalUsers(normalizedUsers);
         } else {
-          console.error('❌ Error al cargar usuarios:', result.message);
           setUsers([]);
           setLocalUsers([]);
         }
       } catch (error: any) {
-        console.error('❌ Error inesperado al cargar usuarios:', error);
+        console.error('Error al inicializar datos:', error);
+        setIsAdmin(false);
         setUsers([]);
+        setLocalUsers([]);
       } finally {
+        setIsCheckingAdmin(false);
         setIsLoadingUsers(false);
       }
     };
 
-    loadUsers();
+    initializeData();
   }, []);
 
   // Manejar cambio de nivel de permiso (solo actualiza estado local, no guarda en BD)
