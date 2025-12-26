@@ -116,12 +116,23 @@ export default function AccessManagement() {
         if (user) {
           setCurrentUserId(user.id);
           
+          console.log('🔍 [AccessManagement] Verificando rol de administrador para:', {
+            userId: user.id,
+            email: user.email,
+            user_metadata: user.user_metadata,
+          });
+          
           // Verificar si el usuario es administrador
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('rol, role')
+            .select('rol, role, id, email')
             .eq('id', user.id)
             .single();
+          
+          console.log('🔍 [AccessManagement] Perfil encontrado:', {
+            profile,
+            profileError: profileError?.message,
+          });
           
           if (profile) {
             const role = profile.rol || profile.role || '';
@@ -129,6 +140,13 @@ export default function AccessManagement() {
                               role === 'Administrador' || 
                               role === 'Admin' ||
                               role?.toLowerCase() === 'administrador';
+            
+            console.log('🔍 [AccessManagement] Verificación de rol:', {
+              role,
+              roleLower: role?.toLowerCase(),
+              userIsAdmin,
+            });
+            
             setIsAdmin(userIsAdmin);
           } else {
             // Si no hay perfil, verificar en user_metadata
@@ -137,13 +155,22 @@ export default function AccessManagement() {
                               role === 'Administrador' || 
                               role === 'Admin' ||
                               role?.toLowerCase() === 'administrador';
+            
+            console.log('🔍 [AccessManagement] Verificación desde user_metadata:', {
+              role,
+              roleLower: role?.toLowerCase(),
+              userIsAdmin,
+              user_metadata: user.user_metadata,
+            });
+            
             setIsAdmin(userIsAdmin);
           }
         } else {
+          console.log('⚠️ [AccessManagement] No se encontró usuario autenticado');
           setIsAdmin(false);
         }
       } catch (error) {
-        console.error('Error al obtener usuario actual:', error);
+        console.error('❌ [AccessManagement] Error al obtener usuario actual:', error);
         setIsAdmin(false);
       } finally {
         setIsCheckingAdmin(false);
