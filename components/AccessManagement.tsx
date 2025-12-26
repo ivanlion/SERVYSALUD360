@@ -8,10 +8,11 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useOptimistic } from 'react';
 import { Check, Plus, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { createUser } from '../app/actions/create-user';
 import { getUsers } from '../app/actions/get-users';
+import { togglePermission } from '../app/actions/toggle-permission';
 
 interface User {
   id: string;
@@ -66,6 +67,25 @@ export default function AccessManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [updatingPermissions, setUpdatingPermissions] = useState<Set<string>>(new Set());
+
+  // useOptimistic para actualización instantánea de permisos
+  const [optimisticUsers, setOptimisticUsers] = useOptimistic(
+    users,
+    (currentUsers: User[], { userId, permissionKey, newValue }: { userId: string; permissionKey: keyof User['permissions']; newValue: boolean }) => {
+      return currentUsers.map(user =>
+        user.id === userId
+          ? {
+              ...user,
+              permissions: {
+                ...user.permissions,
+                [permissionKey]: newValue,
+              },
+            }
+          : user
+      );
+    }
+  );
 
   // Estados del formulario
   const [formData, setFormData] = useState({
@@ -99,10 +119,27 @@ export default function AccessManagement() {
     loadUsers();
   }, []);
 
-  const handlePermissionChange = (
+  // Manejar cambio de permisos con actualización optimista y persistencia en BD
+  const handlePermissionChange = async (
     userId: string,
     permissionKey: keyof User['permissions']
   ) => {
+    // Encontrar el usuario actual
+    const currentUser = users.find(u => u.id === userId);
+    if (!currentUser) return;
+
+    // Si es administrador, no permitir cambios
+    if (currentUser.role === 'Administrador' || currentUser.role === 'Admin') {
+      return;
+    }
+
+    const newValue = !currentUser.permissions[permissionKey];
+    const updateKey = `${userId}-${permissionKey}`;
+
+    // Actualización optimista inmediata
+    setOptimisticUsers({ userId, permissionKey, newValue });
+
+    // Actualizar estado local también
     setUsers(prevUsers =>
       prevUsers.map(user =>
         user.id === userId
@@ -110,12 +147,73 @@ export default function AccessManagement() {
               ...user,
               permissions: {
                 ...user.permissions,
-                [permissionKey]: !user.permissions[permissionKey],
+                [permissionKey]: newValue,
               },
             }
           : user
       )
     );
+
+    // Marcar como actualizando
+    setUpdatingPermissions(prev => new Set(prev).add(updateKey));
+
+    try {
+      // Llamar a la Server Action para persistir en BD
+      const result = await togglePermission(userId, permissionKey, newValue);
+
+      if (!result.success) {
+        // Si falla, revertir el cambio optimista
+        setUsers(prevUsers =>
+          prevUsers.map(user =>
+            user.id === userId
+              ? {
+                  ...user,
+                  permissions: {
+                    ...user.permissions,
+                    [permissionKey]: !newValue, // Revertir
+                  },
+                }
+              : user
+          )
+        );
+        setOptimisticUsers({ userId, permissionKey, newValue: !newValue });
+        
+        // Mostrar error
+        setNotification({
+          type: 'error',
+          message: result.message || 'Error al actualizar el permiso',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error al actualizar permiso:', error);
+      // Revertir cambio optimista
+      setUsers(prevUsers =>
+        prevUsers.map(user =>
+          user.id === userId
+            ? {
+                ...user,
+                permissions: {
+                  ...user.permissions,
+                  [permissionKey]: !newValue,
+                },
+              }
+            : user
+        )
+      );
+      setOptimisticUsers({ userId, permissionKey, newValue: !newValue });
+      
+      setNotification({
+        type: 'error',
+        message: error.message || 'Error inesperado al actualizar el permiso',
+      });
+    } finally {
+      // Quitar de la lista de actualizando
+      setUpdatingPermissions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(updateKey);
+        return newSet;
+      });
+    }
   };
 
   // Manejar cambio en los campos del formulario
@@ -279,7 +377,16 @@ export default function AccessManagement() {
 
             {/* Cuerpo de Tabla */}
             <tbody className="divide-y divide-gray-100">
-              {users.map((user) => (
+              {optimisticUsers.map((user) => {
+                // Verificar si el usuario es administrador
+                const isAdmin = user.role === 'Administrador' || user.role === 'Admin';
+                
+                // Para administradores, todos los permisos son true y deshabilitados
+                const getPermissionValue = (key: keyof User['permissions']) => {
+                  return isAdmin ? true : user.permissions[key];
+                };
+
+                return (
                 <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                   {/* Columna Usuario */}
                   <td className="px-6 py-4">
@@ -305,28 +412,30 @@ export default function AccessManagement() {
 
                   {/* Checkbox Trabajo Modificado */}
                   <td className="px-6 py-4 text-center">
-                    <label className="flex items-center justify-center cursor-not-allowed">
+                    <label className={`flex items-center justify-center ${isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
-                        checked={user.permissions.trabajoModificado}
+                        checked={getPermissionValue('trabajoModificado')}
                         onChange={() =>
                           handlePermissionChange(user.id, 'trabajoModificado')
                         }
-                        disabled
-                        readOnly
+                        disabled={isAdmin || updatingPermissions.has(`${user.id}-trabajoModificado`)}
                         className="sr-only"
                       />
                       <div
                         className={`
                           w-5 h-5 rounded border-2 flex items-center justify-center transition-all
                           ${
-                            user.permissions.trabajoModificado
-                              ? 'bg-gray-900 border-gray-900'
+                            getPermissionValue('trabajoModificado')
+                              ? isAdmin 
+                                ? 'bg-gray-400 border-gray-400' 
+                                : 'bg-gray-900 border-gray-900'
                               : 'bg-white border-gray-300'
                           }
+                          ${updatingPermissions.has(`${user.id}-trabajoModificado`) ? 'opacity-50' : ''}
                         `}
                       >
-                        {user.permissions.trabajoModificado && (
+                        {getPermissionValue('trabajoModificado') && (
                           <Check size={14} className="text-white" />
                         )}
                       </div>
@@ -335,28 +444,30 @@ export default function AccessManagement() {
 
                   {/* Checkbox Vigilancia Médica */}
                   <td className="px-6 py-4 text-center">
-                    <label className="flex items-center justify-center cursor-not-allowed">
+                    <label className={`flex items-center justify-center ${isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
-                        checked={user.permissions.vigilanciaMedica}
+                        checked={getPermissionValue('vigilanciaMedica')}
                         onChange={() =>
                           handlePermissionChange(user.id, 'vigilanciaMedica')
                         }
-                        disabled
-                        readOnly
+                        disabled={isAdmin || updatingPermissions.has(`${user.id}-vigilanciaMedica`)}
                         className="sr-only"
                       />
                       <div
                         className={`
                           w-5 h-5 rounded border-2 flex items-center justify-center transition-all
                           ${
-                            user.permissions.vigilanciaMedica
-                              ? 'bg-gray-900 border-gray-900'
+                            getPermissionValue('vigilanciaMedica')
+                              ? isAdmin 
+                                ? 'bg-gray-400 border-gray-400' 
+                                : 'bg-gray-900 border-gray-900'
                               : 'bg-white border-gray-300'
                           }
+                          ${updatingPermissions.has(`${user.id}-vigilanciaMedica`) ? 'opacity-50' : ''}
                         `}
                       >
-                        {user.permissions.vigilanciaMedica && (
+                        {getPermissionValue('vigilanciaMedica') && (
                           <Check size={14} className="text-white" />
                         )}
                       </div>
@@ -365,31 +476,33 @@ export default function AccessManagement() {
 
                   {/* Checkbox Seguimiento de Trabajadores */}
                   <td className="px-6 py-4 text-center">
-                    <label className="flex items-center justify-center cursor-not-allowed">
+                    <label className={`flex items-center justify-center ${isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
-                        checked={user.permissions.seguimientoTrabajadores}
+                        checked={getPermissionValue('seguimientoTrabajadores')}
                         onChange={() =>
                           handlePermissionChange(
                             user.id,
                             'seguimientoTrabajadores'
                           )
                         }
-                        disabled
-                        readOnly
+                        disabled={isAdmin || updatingPermissions.has(`${user.id}-seguimientoTrabajadores`)}
                         className="sr-only"
                       />
                       <div
                         className={`
                           w-5 h-5 rounded border-2 flex items-center justify-center transition-all
                           ${
-                            user.permissions.seguimientoTrabajadores
-                              ? 'bg-gray-900 border-gray-900'
+                            getPermissionValue('seguimientoTrabajadores')
+                              ? isAdmin 
+                                ? 'bg-gray-400 border-gray-400' 
+                                : 'bg-gray-900 border-gray-900'
                               : 'bg-white border-gray-300'
                           }
+                          ${updatingPermissions.has(`${user.id}-seguimientoTrabajadores`) ? 'opacity-50' : ''}
                         `}
                       >
-                        {user.permissions.seguimientoTrabajadores && (
+                        {getPermissionValue('seguimientoTrabajadores') && (
                           <Check size={14} className="text-white" />
                         )}
                       </div>
@@ -398,35 +511,38 @@ export default function AccessManagement() {
 
                   {/* Checkbox Seguridad e Higiene */}
                   <td className="px-6 py-4 text-center">
-                    <label className="flex items-center justify-center cursor-not-allowed">
+                    <label className={`flex items-center justify-center ${isAdmin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
-                        checked={user.permissions.seguridadHigiene}
+                        checked={getPermissionValue('seguridadHigiene')}
                         onChange={() =>
                           handlePermissionChange(user.id, 'seguridadHigiene')
                         }
-                        disabled
-                        readOnly
+                        disabled={isAdmin || updatingPermissions.has(`${user.id}-seguridadHigiene`)}
                         className="sr-only"
                       />
                       <div
                         className={`
                           w-5 h-5 rounded border-2 flex items-center justify-center transition-all
                           ${
-                            user.permissions.seguridadHigiene
-                              ? 'bg-gray-900 border-gray-900'
+                            getPermissionValue('seguridadHigiene')
+                              ? isAdmin 
+                                ? 'bg-gray-400 border-gray-400' 
+                                : 'bg-gray-900 border-gray-900'
                               : 'bg-white border-gray-300'
                           }
+                          ${updatingPermissions.has(`${user.id}-seguridadHigiene`) ? 'opacity-50' : ''}
                         `}
                       >
-                        {user.permissions.seguridadHigiene && (
+                        {getPermissionValue('seguridadHigiene') && (
                           <Check size={14} className="text-white" />
                         )}
                       </div>
                     </label>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
