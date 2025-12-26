@@ -123,6 +123,18 @@ export default function Sidebar() {
         `}
       >
         <div className="flex flex-col h-full">
+          {/* Logo y Título */}
+          <div className="flex items-center gap-3 px-6 py-6 border-b border-blue-100">
+            <div className="bg-blue-600 text-white p-2 rounded-lg">
+              <Activity size={24} />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-lg text-slate-800 leading-tight text-left">
+                Sistema de Gestión de Salud Ocupacional
+              </span>
+            </div>
+          </div>
+
           {/* Menu Items */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             {menuItems.map((item) => {
