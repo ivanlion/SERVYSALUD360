@@ -86,12 +86,9 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       
       {/* Saludo de Bienvenida - Estilo minimalista */}
       <div className="mb-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-gray-900">
           Bienvenido, {userName}
         </h1>
-        <p className="text-gray-500 text-base">
-          Sistema de Gestión de Salud Ocupacional
-        </p>
       </div>
 
       {/* Grid de Tarjetas */}
