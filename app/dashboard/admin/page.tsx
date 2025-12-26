@@ -77,9 +77,13 @@ export default function AdminPage() {
     checkAdminAccess();
   }, [router]);
 
-  // Actualizar el estado de navegación cuando se carga esta página
+  // Nota: Esta página solo se accede cuando el usuario hace clic en "Gestión de Usuarios"
+  // No establecemos la vista automáticamente para que el usuario pueda navegar libremente
+  // Si el usuario accede directamente a /dashboard/admin, establecer la vista
   useEffect(() => {
     if (isAdmin) {
+      // Solo establecer ACCESS_MANAGEMENT si el usuario accede directamente a esta ruta
+      // No forzar la vista si viene del login (debe ir al Dashboard primero)
       setCurrentView('ACCESS_MANAGEMENT');
     }
   }, [setCurrentView, isAdmin]);

@@ -156,11 +156,15 @@ export default function Home() {
   const geminiModelRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Obtener información del usuario autenticado
+  // Obtener información del usuario autenticado y asegurar que siempre inicie en DASHBOARD
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      
+      // Asegurar que siempre se muestre el Dashboard (INICIO) al cargar la página
+      // Esto garantiza que todos los usuarios, incluido el administrador, vean el Dashboard primero
+      setCurrentView('DASHBOARD');
     };
     getUser();
 
@@ -168,6 +172,10 @@ export default function Home() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
         setUser(session.user);
+        // Cuando se detecta una nueva sesión (login), asegurar que se muestre el Dashboard
+        if (event === 'SIGNED_IN') {
+          setCurrentView('DASHBOARD');
+        }
       } else {
         setUser(null);
       }
@@ -176,7 +184,7 @@ export default function Home() {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [setCurrentView]);
 
   // Función para cerrar sesión
   const handleLogout = async () => {

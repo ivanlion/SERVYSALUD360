@@ -57,7 +57,8 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        // Redirigir al dashboard
+        // Redirigir al dashboard (módulo INICIO)
+        // Todos los usuarios, incluido el administrador, deben ir al Dashboard principal
         router.push('/');
         router.refresh();
       }

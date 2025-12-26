@@ -203,7 +203,9 @@ export default function Sidebar() {
     
     // Navegación según el módulo
     if (item.label === 'Inicio') {
+      // Siempre ir al Dashboard principal (INICIO)
       router.push('/');
+      setCurrentView('DASHBOARD');
     } else if (item.label === 'Trabajo Modificado') {
       router.push('/');
       setCurrentView('WORK_MODIFIED_DASHBOARD');
