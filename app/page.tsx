@@ -1,5 +1,5 @@
 /**
- * SERVYSALUD 360 - Sistema de Trabajo Modificado
+ * Sistema de Gestión de Salud Ocupacional
  * 
  * Página principal de la aplicación que gestiona:
  * - Dashboard de casos
@@ -7,7 +7,7 @@
  * - Asistente IA con Google Gemini
  * - Análisis de PDFs médicos
  * 
- * @author Servysalud 360
+ * @author Sistema de Gestión de Salud Ocupacional
  * @version 1.0.0
  */
 
@@ -524,10 +524,10 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
                   <Activity className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
                 <span className="font-bold text-sm sm:text-lg lg:text-xl text-slate-800 tracking-tight truncate">
-                  <span className="hidden sm:inline">SERVYSALUD 360 - </span>
-                  <span className="hidden xs:inline sm:hidden">SERVYSALUD</span>
-                  <span className="sm:hidden">S360</span>
-                  <span className="hidden sm:inline">Trabajo Modificado</span>
+                  <span className="hidden sm:inline">Sistema de Gestión de </span>
+                  <span className="hidden xs:inline sm:hidden">Sistema de </span>
+                  <span className="sm:hidden">SGSO</span>
+                  <span className="hidden sm:inline">Salud Ocupacional</span>
                 </span>
               </div>
             </div>
@@ -784,6 +784,15 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-blue-100 mt-auto py-4 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-center text-xs sm:text-sm text-slate-500">
+            © 2025 Sistema de Gestión de Salud Ocupacional - Todos los derechos reservados
+          </p>
+        </div>
+      </footer>
       </div>
     </AuthGuard>
   );
