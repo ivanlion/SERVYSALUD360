@@ -57,7 +57,10 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
     // Asegurarse de que el ID de Supabase esté presente
     const supabaseId = record.id;
     if (!supabaseId) {
-      console.warn('Registro sin ID de Supabase:', record);
+      console.error('⚠️ Registro sin ID de Supabase:', record);
+      console.error('⚠️ Esto impedirá eliminar este registro. Verifica que la tabla tenga una columna "id" como clave primaria.');
+    } else {
+      console.log('✓ ID de Supabase capturado:', supabaseId, 'Tipo:', typeof supabaseId);
     }
     
     return {
@@ -107,10 +110,20 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
         }
 
         if (data) {
+          // Log para debugging - ver qué datos vienen de Supabase
+          console.log('Datos recibidos de Supabase:', data);
+          
           // Mapear los datos de Supabase a CaseData
-          const mappedCases = data.map((record: any, index: number) => 
-            mapSupabaseToCaseData(record as SupabaseRecord, index)
-          );
+          const mappedCases = data.map((record: any, index: number) => {
+            const mapped = mapSupabaseToCaseData(record as SupabaseRecord, index);
+            // Log para verificar que el ID se está mapeando correctamente
+            console.log(`Mapeo registro ${index}:`, {
+              supabaseId: record.id,
+              caseId: mapped.id,
+              trabajador: mapped.trabajadorNombre
+            });
+            return mapped;
+          });
           setCases(mappedCases);
         }
       } catch (err: any) {
@@ -213,14 +226,24 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
     setDeletingId(caseData.id);
 
     try {
-      console.log('Intentando eliminar registro:', {
+      console.log('🗑️ Intentando eliminar registro:', {
         caseId: caseData.id,
         supabaseId: caseData.supabaseId,
+        tipoSupabaseId: typeof caseData.supabaseId,
         trabajador: caseData.trabajadorNombre,
         dni: caseData.dni
       });
       
+      // Validar que tenemos un ID válido
+      if (!caseData.supabaseId || (caseData.supabaseId === null) || (caseData.supabaseId === undefined)) {
+        const errorMsg = 'No se puede eliminar: el registro no tiene un ID de Supabase válido.';
+        console.error('❌', errorMsg);
+        alert(errorMsg + '\n\nPor favor, recarga la página y vuelve a intentar.');
+        return;
+      }
+      
       // Eliminar de Supabase usando el ID real
+      console.log('📡 Enviando petición DELETE a Supabase con ID:', caseData.supabaseId);
       const { data, error: deleteError } = await supabase
         .from('registros_trabajadores')
         .delete()
@@ -228,11 +251,22 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
         .select();
 
       if (deleteError) {
-        console.error('Error de Supabase al eliminar:', deleteError);
+        console.error('❌ Error de Supabase al eliminar:', deleteError);
+        console.error('❌ Detalles del error:', {
+          message: deleteError.message,
+          details: deleteError.details,
+          hint: deleteError.hint,
+          code: deleteError.code
+        });
         throw deleteError;
       }
 
-      console.log('Registro eliminado exitosamente. Respuesta:', data);
+      console.log('✅ Registro eliminado exitosamente. Respuesta de Supabase:', data);
+      
+      // Verificar que realmente se eliminó
+      if (!data || data.length === 0) {
+        console.warn('⚠️ Supabase no devolvió datos eliminados. Esto puede indicar que el registro no existía o no se pudo eliminar.');
+      }
 
       // Recargar los datos desde Supabase para asegurar que esté actualizado
       const { data: refreshedData, error: refreshError } = await supabase
