@@ -127,17 +127,21 @@ export default function Sidebar() {
           {/* Menu Items */}
           <nav className={`flex-1 py-4 space-y-2 overflow-y-auto ${isSidebarCollapsed ? 'px-2' : 'px-4'}`}>
             {menuItems.map((item) => {
-              const isActive = item.view === currentView && currentView !== 'ACCESS_MANAGEMENT';
-              const isAdminActive = item.label === 'Administración' && (currentView === 'ACCESS_MANAGEMENT' || currentView === 'DASHBOARD');
+              // Lógica mejorada para determinar si un item está activo
+              const isActive = item.view === currentView && 
+                (currentView !== 'ACCESS_MANAGEMENT' || item.label === 'Administración');
+              const isAdminActive = item.label === 'Administración' && 
+                (currentView === 'ACCESS_MANAGEMENT' || pathname === '/dashboard/admin');
               
               return (
                 <React.Fragment key={item.label}>
                   <button
                     onClick={() => {
-                      if (item.hasSubItems && currentView !== 'ACCESS_MANAGEMENT') {
-                        // Si es Administración y no estamos en ACCESS_MANAGEMENT, no hacer nada (solo mostrar sub-items)
-                        return;
+                      // Si tiene sub-items (Administración), no cambiar vista al hacer clic en el item principal
+                      if (item.hasSubItems) {
+                        return; // Solo mostrar/ocultar sub-items
                       }
+                      // Para otros items, cambiar la vista normalmente
                       handleItemClick(item);
                     }}
                     className={`
