@@ -21,7 +21,13 @@ import {
   User,
   CreditCard,
   Shield,
-  Gift
+  Gift,
+  ChevronDown,
+  MessageSquare,
+  History,
+  BookOpen,
+  BarChart2,
+  Database
 } from 'lucide-react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useChat } from '../contexts/ChatContext';
@@ -33,7 +39,9 @@ export default function Header() {
   const { toggleChat } = useChat();
   const [user, setUser] = useState<any>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const supportRef = useRef<HTMLDivElement>(null);
 
   // Función para crear nuevo caso
   const handleCreateNew = () => {
@@ -73,22 +81,25 @@ export default function Header() {
     }
   };
 
-  // Cerrar dropdown al hacer click fuera
+  // Cerrar dropdown del perfil al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
       }
+      if (supportRef.current && !supportRef.current.contains(event.target as Node)) {
+        setIsSupportOpen(false);
+      }
     };
 
-    if (isDropdownOpen) {
+    if (isDropdownOpen || isSupportOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isDropdownOpen]);
+  }, [isDropdownOpen, isSupportOpen]);
 
   // Obtener nombre completo del usuario
   const getUserDisplayName = () => {
@@ -183,13 +194,48 @@ export default function Header() {
 
       {/* BLOQUE DERECHO - Utilidades Rígida */}
       <div className="flex items-center gap-4 shrink-0">
-        {/* Link Soporte */}
-        <a
-          href="#"
-          className="text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors"
-        >
-          Soporte
-        </a>
+        {/* Soporte con Dropdown */}
+        <div className="relative" ref={supportRef}>
+          <button
+            onClick={() => setIsSupportOpen(!isSupportOpen)}
+            className="flex items-center gap-1.5 text-gray-700 hover:text-gray-900 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 rounded-lg px-2 py-1"
+            aria-label="Menú de soporte"
+          >
+            <span>Soporte</span>
+            <ChevronDown 
+              size={16} 
+              className={`transition-transform ${isSupportOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {/* Dropdown Menu de Soporte */}
+          {isSupportOpen && (
+            <div className="absolute top-full mt-4 right-0 w-64 bg-white rounded-xl shadow-xl border border-gray-100 z-50">
+              <div className="py-2">
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                  <MessageSquare size={18} className="text-gray-400" />
+                  <span>Contactar A Soporte</span>
+                </button>
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                  <History size={18} className="text-gray-400" />
+                  <span>Historial De Soporte</span>
+                </button>
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                  <BookOpen size={18} className="text-gray-400" />
+                  <span>Centro De Ayuda</span>
+                </button>
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                  <BarChart2 size={18} className="text-gray-400" />
+                  <span>Estado Del Sistema</span>
+                </button>
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left">
+                  <Database size={18} className="text-gray-400" />
+                  <span>Centros De Datos</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Campana Notificación */}
         <button
