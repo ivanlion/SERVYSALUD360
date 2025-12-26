@@ -522,36 +522,35 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
   return (
     <AuthGuard>
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Navbar - Estructura DreamHost Style */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full h-16">
-        <div className="flex items-center justify-between px-6 h-full">
-          {/* SECCIÓN IZQUIERDA - Marca (shrink-0) */}
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Botón Menú Hamburguesa */}
-            <button 
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Toggle sidebar"
-            >
-              <Menu size={20} className="text-gray-600" />
-            </button>
-            
-            {/* Icono Escudo */}
-            <div className="bg-blue-600 text-white p-1.5 rounded-lg">
-              <Activity className="h-5 w-5" />
-            </div>
-            
-            {/* Texto del Sistema */}
-            <div 
-              className="cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setCurrentView('DASHBOARD')}
-            >
-              <span className="font-bold text-base text-gray-900 whitespace-nowrap">
-                Sistema de Gestión de Salud Ocupacional
-              </span>
-            </div>
+      {/* Navbar - Estructura DreamHost Style Estricta */}
+      <nav className="flex items-center justify-between h-16 px-4 bg-white border-b border-gray-200 sticky top-0 z-50">
+        {/* BLOQUE 1: LA IDENTIDAD (Izquierda Rígida) */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Botón Menú Hamburguesa */}
+          <button 
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Toggle sidebar"
+          >
+            <Menu size={20} className="text-gray-600" />
+          </button>
+          
+          {/* Logo Escudo */}
+          <div className="bg-blue-600 text-white p-1.5 rounded-lg">
+            <Activity className="h-5 w-5" />
           </div>
+          
+          {/* Título - Sistema de Gestión de Salud Ocupacional */}
+          <div 
+            className="cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => setCurrentView('DASHBOARD')}
+          >
+            <span className="text-lg font-bold text-gray-900 whitespace-nowrap">
+              Sistema de Gestión de Salud Ocupacional
+            </span>
+          </div>
+        </div>
 
-          {/* SECCIÓN CENTRAL - Buscador + Asistente (flex-1, centrado) */}
+          {/* BLOQUE 2: BUSCADOR + ASISTENTE (Centro Flexible) */}
           <div className="flex-1 flex justify-center items-center gap-2 px-4">
             {/* Input de Búsqueda tipo Píldora */}
             <div className="relative max-w-xl w-full">
@@ -575,7 +574,7 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
             </button>
           </div>
 
-          {/* SECCIÓN DERECHA - Utilidades (shrink-0) */}
+          {/* BLOQUE 3: UTILIDADES (Derecha Rígida) */}
           <div className="flex items-center gap-4 shrink-0">
             {/* Soporte */}
             <a
@@ -629,7 +628,6 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
               </div>
             )}
           </div>
-        </div>
       </nav>
 
       {/* Main Content */}
