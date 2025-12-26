@@ -153,7 +153,7 @@ export default function AccessManagement() {
             try {
               const { data, error } = await supabase
                 .from('profiles')
-                .select('rol, role')
+                .select('role') // Solo usar role, que es la columna que existe
                 .eq('id', user.id)
                 .single();
               return { data, error };
@@ -166,7 +166,7 @@ export default function AccessManagement() {
 
         // Procesar verificación de admin
         const profile = profileResult.data;
-        const role = profile?.rol || profile?.role || user.user_metadata?.rol || user.user_metadata?.role || '';
+        const role = profile?.role || user.user_metadata?.role || ''; // Solo usar role, que es la columna que existe
         const userIsAdmin = isAdminUser(user.email, role);
         setIsAdmin(userIsAdmin);
         setIsCheckingAdmin(false);
