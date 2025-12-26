@@ -11,6 +11,7 @@
 import React from 'react';
 import { CaseData } from '../types';
 import { Briefcase, Heart, Shield, Settings, Users } from 'lucide-react';
+import { useNavigation } from '../contexts/NavigationContext';
 
 interface DashboardProps {
   onEdit: (data: CaseData) => void;
@@ -19,6 +20,8 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
+  const { setCurrentView } = useNavigation();
+  
   // Obtener nombre del usuario del email
   const getUserName = () => {
     if (!user?.email) return 'Usuario';
@@ -37,6 +40,7 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       description: 'Gestión de casos y restricciones laborales',
       color: 'blue',
       onClick: onCreate,
+      href: undefined, // Usa onClick en lugar de href
       featured: false
     },
     {
@@ -46,6 +50,7 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       description: 'Seguimiento de exámenes y evaluaciones',
       color: 'red',
       onClick: () => {},
+      href: undefined, // Sin ruta definida aún
       featured: false
     },
     {
@@ -55,6 +60,7 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       description: 'Monitoreo de trabajadores y casos activos',
       color: 'green',
       onClick: () => {},
+      href: undefined, // Sin ruta definida aún
       featured: false
     },
     {
@@ -64,6 +70,7 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       description: 'Control de seguridad y protocolos',
       color: 'purple',
       onClick: () => {},
+      href: undefined, // Sin ruta definida aún
       featured: false
     },
     {
@@ -72,7 +79,7 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       icon: <Settings size={28} />,
       description: 'Configuración y gestión del sistema',
       color: 'dark',
-      onClick: () => {},
+      onClick: () => setCurrentView('ACCESS_MANAGEMENT'),
       featured: true
     }
   ];
@@ -110,12 +117,12 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
               onClick={card.onClick}
               className={`
                 relative p-6 rounded-2xl shadow-sm border border-gray-100 transition-all duration-200
-                transform hover:scale-[1.02] hover:shadow-md
+                transform hover:scale-[1.02] hover:shadow-md cursor-pointer
                 ${isFeatured 
                   ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700' 
                   : 'bg-white text-gray-900 hover:border-gray-200'
                 }
-                text-left
+                text-left w-full
               `}
             >
               <div className="flex items-start justify-between mb-4">
