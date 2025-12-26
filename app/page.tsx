@@ -585,7 +585,8 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         {currentView === 'DASHBOARD' && (
           <Dashboard 
             onEdit={handleEditCase} 
-            onCreate={handleCreateNew} 
+            onCreate={handleCreateNew}
+            user={user}
           />
         )}
         {(currentView === 'NEW_CASE' || currentView === 'EDIT_CASE') && (
