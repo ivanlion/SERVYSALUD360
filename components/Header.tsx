@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Menu,
@@ -44,10 +44,10 @@ export default function Header() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const supportRef = useRef<HTMLDivElement>(null);
 
-  // Función para crear nuevo caso
-  const handleCreateNew = () => {
+  // Función para crear nuevo caso (memoizada)
+  const handleCreateNew = useCallback(() => {
     setCurrentView('NEW_CASE');
-  };
+  }, [setCurrentView]);
 
   // Obtener información del usuario autenticado y su perfil
   useEffect(() => {
@@ -137,8 +137,8 @@ export default function Header() {
     };
   }, [isDropdownOpen, isSupportOpen]);
 
-  // Obtener nombre completo del usuario
-  const getUserDisplayName = () => {
+  // Obtener nombre completo del usuario (memoizado)
+  const getUserDisplayName = useMemo(() => {
     // Prioridad 1: full_name desde profiles
     if (userProfile?.full_name) {
       return userProfile.full_name;
@@ -158,10 +158,10 @@ export default function Header() {
     if (!user?.email) return 'Usuario';
     const emailParts = user.email.split('@')[0];
     return emailParts.charAt(0).toUpperCase() + emailParts.slice(1);
-  };
+  }, [userProfile, user]);
 
-  // Obtener iniciales desde el nombre completo
-  const getInitialsFromName = (name: string): string => {
+  // Obtener iniciales desde el nombre completo (memoizado)
+  const getInitialsFromName = useCallback((name: string): string => {
     if (!name) return 'U';
     
     // Dividir el nombre en palabras
@@ -179,19 +179,17 @@ export default function Header() {
     }
     
     return 'U';
-  };
+  }, []);
 
-  // Obtener iniciales para el avatar grande
-  const getUserInitials = () => {
-    const displayName = getUserDisplayName();
-    return getInitialsFromName(displayName);
-  };
+  // Obtener iniciales para el avatar grande (memoizado)
+  const getUserInitials = useMemo(() => {
+    return getInitialsFromName(getUserDisplayName);
+  }, [getUserDisplayName, getInitialsFromName]);
 
-  // Obtener iniciales para el avatar pequeño
-  const getSmallAvatarInitials = () => {
-    const displayName = getUserDisplayName();
-    return getInitialsFromName(displayName);
-  };
+  // Obtener iniciales para el avatar pequeño (memoizado)
+  const getSmallAvatarInitials = useMemo(() => {
+    return getInitialsFromName(getUserDisplayName);
+  }, [getUserDisplayName, getInitialsFromName]);
 
   return (
     <nav className="w-full h-16 bg-white border-b border-gray-200 sticky top-0 z-50 flex items-center justify-between px-4">
@@ -327,7 +325,7 @@ export default function Header() {
               className="h-9 w-9 rounded-full bg-gray-800 flex items-center justify-center font-semibold text-white text-sm hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
               aria-label="Menú de usuario"
             >
-              {getSmallAvatarInitials()}
+              {getSmallAvatarInitials}
             </button>
 
             {/* Dropdown Menu */}
@@ -337,12 +335,12 @@ export default function Header() {
                 <div className="p-6 flex items-center gap-4">
                   {/* Avatar Grande */}
                   <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center font-semibold text-white text-lg flex-shrink-0">
-                    {getUserInitials()}
+                    {getUserInitials}
                   </div>
                   {/* Info Usuario */}
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-gray-900 truncate">
-                      {getUserDisplayName()}
+                      {getUserDisplayName}
                     </div>
                     <div className="text-sm text-gray-500 truncate">
                       {user.email}

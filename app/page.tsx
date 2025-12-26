@@ -13,7 +13,8 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { 
   MessageSquare,
   Send,
@@ -26,14 +27,37 @@ import {
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Dashboard from '../components/Dashboard';
 import WorkModifiedDashboard from '../components/WorkModifiedDashboard';
-import CaseForm from '../components/CaseForm';
-import AccessManagement from '../components/AccessManagement';
 import AuthGuard from '../components/AuthGuard';
 import { CaseData, INITIAL_CASE, createNewReevaluation } from '../types';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useChat } from '../contexts/ChatContext';
+
+// Lazy loading de componentes pesados para mejor rendimiento
+const CaseForm = dynamic(() => import('../components/CaseForm'), {
+  loading: () => (
+    <div className="flex items-center justify-center py-20">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="animate-spin text-indigo-600" size={48} />
+        <p className="text-gray-600">Cargando formulario...</p>
+      </div>
+    </div>
+  ),
+  ssr: false
+});
+
+const AccessManagement = dynamic(() => import('../components/AccessManagement'), {
+  loading: () => (
+    <div className="flex items-center justify-center py-20">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="animate-spin text-indigo-600" size={48} />
+        <p className="text-gray-600">Cargando gestión de accesos...</p>
+      </div>
+    </div>
+  ),
+  ssr: false
+});
 
 /**
  * Datos de ejemplo para demostración (no se utilizan en producción)
@@ -186,15 +210,15 @@ export default function Home() {
     };
   }, [setCurrentView]);
 
-  // Función para cerrar sesión
-  const handleLogout = async () => {
+  // Función para cerrar sesión (memoizada)
+  const handleLogout = useCallback(async () => {
     try {
       await supabase.auth.signOut();
       router.push('/login');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     }
-  };
+  }, [router]);
 
   /**
    * Inicializa el modelo de Google Gemini AI al montar el componente
@@ -276,25 +300,25 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
    * Maneja el guardado de un caso (crear nuevo o actualizar existente)
    * @param caseData - Datos del caso a guardar
    */
-  const handleSaveCase = (caseData: CaseData) => {
+  const handleSaveCase = useCallback((caseData: CaseData) => {
     if (selectedCase) {
       // Update existing
-      setCases(cases.map(c => c.id === caseData.id ? caseData : c));
+      setCases(prevCases => prevCases.map(c => c.id === caseData.id ? caseData : c));
     } else {
       // Create new
       const newCase = { ...caseData, id: `PO-0006-${Date.now().toString().slice(-4)}` };
-      setCases([newCase, ...cases]);
+      setCases(prevCases => [newCase, ...prevCases]);
     }
     setCurrentView('DASHBOARD');
     setSelectedCase(null);
-  };
+  }, [selectedCase, setCurrentView]);
 
   /**
    * Maneja la edición de un caso existente
    * Asegura que los arrays de reevaluaciones y assessment2 existan
    * @param caseData - Datos del caso a editar
    */
-  const handleEditCase = (caseData: CaseData) => {
+  const handleEditCase = useCallback((caseData: CaseData) => {
     // If opening a new case that has no reevaluations yet, we might want to ensure the array exists
     if (!caseData.reevaluaciones) {
         caseData.reevaluaciones = [];
@@ -305,12 +329,12 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
     }
     setSelectedCase(caseData);
     setCurrentView('EDIT_CASE');
-  };
+  }, [setCurrentView]);
 
-  const handleCreateNew = () => {
+  const handleCreateNew = useCallback(() => {
     setSelectedCase(null);
     setCurrentView('NEW_CASE');
-  };
+  }, [setCurrentView]);
 
   // Sincronizar el estado del chat con el contexto
   useEffect(() => {

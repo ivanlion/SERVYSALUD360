@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { CaseData } from '../types';
 import { Briefcase, Heart, Shield, Settings, Users } from 'lucide-react';
@@ -65,8 +65,8 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
     getUserName();
   }, [user]);
 
-  // Tarjetas del dashboard
-  const dashboardCards = [
+  // Tarjetas del dashboard (memoizadas para evitar re-renders)
+  const dashboardCards = useMemo(() => [
     {
       id: 'trabajo-modificado',
       title: 'Trabajo Modificado',
@@ -112,7 +112,7 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       onClick: () => setCurrentView('ACCESS_MANAGEMENT'),
       featured: true
     }
-  ];
+  ], [setCurrentView]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

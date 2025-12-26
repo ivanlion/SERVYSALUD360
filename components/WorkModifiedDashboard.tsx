@@ -9,10 +9,27 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { CaseData, INITIAL_CASE, EventType } from '../types';
 import { supabase } from '../lib/supabase';
 import { Edit2, Search, Building2, Users, Calendar, Clock, Activity, AlertCircle, Loader2, Trash2, Plus } from 'lucide-react';
+
+// Hook personalizado para debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 interface WorkModifiedDashboardProps {
   onEdit: (data: CaseData) => void;
@@ -46,6 +63,9 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // Debounce del término de búsqueda (300ms de delay)
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   /**
    * Mapea los datos de Supabase al formato CaseData de la aplicación
@@ -87,10 +107,11 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
       setIsLoading(true);
       setError(null);
 
-      try {
+        try {
+        // Optimización: Solo seleccionar campos necesarios para la tabla
         const { data, error: supabaseError } = await supabase
           .from('registros_trabajadores')
-          .select('*')
+          .select('id, fecha_registro, apellidos_nombre, dni_ce_pas, telefono_trabajador, sexo, jornada_laboral, puesto_trabajo, empresa, gerencia, supervisor_responsable, telf_contacto_supervisor')
           .order('fecha_registro', { ascending: false });
 
         if (supabaseError) {
@@ -114,12 +135,17 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
     loadCases();
   }, []);
 
-  // Filter Logic: Search by Name, DNI, or Company
-  const filteredCases = cases.filter(c => {
-    const term = searchTerm.toLowerCase();
-    const searchString = `${c.trabajadorNombre} ${c.dni} ${c.empresa}`.toLowerCase();
-    return searchString.includes(term);
-  });
+  // Filter Logic: Search by Name, DNI, or Company (memoizado para mejor rendimiento)
+  const filteredCases = useMemo(() => {
+    if (!debouncedSearchTerm.trim()) {
+      return cases;
+    }
+    const term = debouncedSearchTerm.toLowerCase();
+    return cases.filter(c => {
+      const searchString = `${c.trabajadorNombre} ${c.dni} ${c.empresa}`.toLowerCase();
+      return searchString.includes(term);
+    });
+  }, [cases, debouncedSearchTerm]);
 
   // Helper to extract numeric days
   const parseDays = (str?: string) => {
@@ -135,13 +161,18 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
     return { initial, added, total };
   };
 
-  // Stats Calculation based on FILTERED data
-  const totalCases = filteredCases.length;
-  const activeCases = filteredCases.filter(c => c.status === 'ACTIVO').length;
-  const closedCases = filteredCases.filter(c => c.status === 'CERRADO').length;
-  const globalAccumulatedDays = filteredCases.reduce((acc, c) => {
-    return acc + getCaseDaysInfo(c).total;
-  }, 0);
+  // Stats Calculation based on FILTERED data (memoizado)
+  const stats = useMemo(() => {
+    const total = filteredCases.length;
+    const active = filteredCases.filter(c => c.status === 'ACTIVO').length;
+    const closed = filteredCases.filter(c => c.status === 'CERRADO').length;
+    const accumulatedDays = filteredCases.reduce((acc, c) => {
+      return acc + getCaseDaysInfo(c).total;
+    }, 0);
+    return { total, active, closed, accumulatedDays };
+  }, [filteredCases]);
+
+  const { total: totalCases, active: activeCases, closed: closedCases, accumulatedDays: globalAccumulatedDays } = stats;
 
   // Helper to format date from YYYY-MM-DD to DD/MM/YYYY
   const formatDate = (dateString: string) => {
@@ -176,9 +207,9 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
   };
 
   /**
-   * Maneja la eliminación de un caso con confirmación
+   * Maneja la eliminación de un caso con confirmación (memoizado)
    */
-  const handleDelete = async (caseData: CaseDataWithSupabaseId) => {
+  const handleDelete = useCallback(async (caseData: CaseDataWithSupabaseId) => {
     const confirmMessage = `¿Estás seguro de que deseas eliminar el registro de ${caseData.trabajadorNombre} (DNI: ${caseData.dni})?\n\nEsta acción no se puede deshacer.`;
 
     if (!window.confirm(confirmMessage)) {
@@ -214,7 +245,7 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
     } finally {
       setDeletingId(null);
     }
-  };
+  }, []);
 
   // Mostrar estado de carga
   if (isLoading) {
@@ -342,7 +373,8 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                aria-label="Limpiar búsqueda"
               >
                 Limpiar
               </button>
