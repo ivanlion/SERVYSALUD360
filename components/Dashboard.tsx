@@ -40,7 +40,6 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       description: 'Gestión de casos y restricciones laborales',
       color: 'blue',
       onClick: onCreate,
-      href: undefined, // Usa onClick en lugar de href
       featured: false
     },
     {
@@ -50,7 +49,6 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       description: 'Seguimiento de exámenes y evaluaciones',
       color: 'red',
       onClick: () => {},
-      href: undefined, // Sin ruta definida aún
       featured: false
     },
     {
@@ -60,7 +58,6 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       description: 'Monitoreo de trabajadores y casos activos',
       color: 'green',
       onClick: () => {},
-      href: undefined, // Sin ruta definida aún
       featured: false
     },
     {
@@ -70,7 +67,6 @@ export default function Dashboard({ onEdit, onCreate, user }: DashboardProps) {
       description: 'Control de seguridad y protocolos',
       color: 'purple',
       onClick: () => {},
-      href: undefined, // Sin ruta definida aún
       featured: false
     },
     {
