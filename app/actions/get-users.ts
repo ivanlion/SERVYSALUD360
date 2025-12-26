@@ -42,26 +42,59 @@ export async function getUsers() {
       },
     });
 
-    // Intentar obtener usuarios desde la tabla profiles primero
+    // Obtener usuarios desde la tabla profiles
     const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
 
+    // Si hay error pero no es porque la tabla no existe, retornar error
+    if (profilesError && profilesError.code !== 'PGRST116') {
+      console.error('Error al obtener usuarios de profiles:', profilesError);
+      return {
+        success: false,
+        message: profilesError.message || 'Error al obtener usuarios de profiles',
+        users: [],
+      };
+    }
+
     // Si la tabla profiles existe y tiene datos, usarlos
     if (!profilesError && profilesData && profilesData.length > 0) {
-      const users = profilesData.map((profile: any) => ({
-        id: profile.id,
-        name: profile.nombre || profile.name || 'Usuario sin nombre',
-        email: profile.email || '',
-        role: profile.rol || profile.role || 'Usuario',
-        permissions: {
-          trabajoModificado: profile.trabajo_modificado || false,
-          vigilanciaMedica: profile.vigilancia_medica || false,
-          seguimientoTrabajadores: profile.seguimiento_trabajadores || false,
-          seguridadHigiene: profile.seguridad_higiene || false,
-        },
-      }));
+      const users = profilesData.map((profile: any) => {
+        // Manejar permissions como JSON o campos individuales
+        let permissions = {
+          trabajoModificado: false,
+          vigilanciaMedica: false,
+          seguimientoTrabajadores: false,
+          seguridadHigiene: false,
+        };
+
+        // Si permissions es un objeto JSON
+        if (profile.permissions && typeof profile.permissions === 'object') {
+          permissions = {
+            trabajoModificado: profile.permissions.trabajo_modificado || profile.permissions.trabajoModificado || false,
+            vigilanciaMedica: profile.permissions.vigilancia_medica || profile.permissions.vigilanciaMedica || false,
+            seguimientoTrabajadores: profile.permissions.seguimiento_trabajadores || profile.permissions.seguimientoTrabajadores || false,
+            seguridadHigiene: profile.permissions.seguridad_higiene || profile.permissions.seguridadHigiene || false,
+          };
+        } else {
+          // Si permissions viene como campos individuales
+          permissions = {
+            trabajoModificado: profile.trabajo_modificado || false,
+            vigilanciaMedica: profile.vigilancia_medica || false,
+            seguimientoTrabajadores: profile.seguimiento_trabajadores || false,
+            seguridadHigiene: profile.seguridad_higiene || false,
+          };
+        }
+
+        return {
+          id: profile.id,
+          name: profile.full_name || profile.nombre || profile.name || null,
+          email: profile.email || '',
+          role: profile.rol || profile.role || 'Usuario',
+          permissions,
+        };
+      });
 
       return {
         success: true,

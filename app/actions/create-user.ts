@@ -92,15 +92,15 @@ export async function createUser(formData: FormData) {
     }
 
     // Insertar datos adicionales en la tabla de perfiles (si existe)
-    // Nota: Ajusta el nombre de la tabla según tu esquema de Supabase
-    // Por ejemplo: 'profiles', 'users', 'user_profiles', etc.
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .insert({
         id: authData.user.id,
-        nombre,
+        full_name: nombre, // Usar full_name como campo principal
+        nombre: nombre, // Mantener compatibilidad con nombre también
         email,
         rol,
+        role: rol, // Mantener compatibilidad con role también
         created_at: new Date().toISOString(),
       })
       .select();

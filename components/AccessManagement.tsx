@@ -15,7 +15,7 @@ import { getUsers } from '../app/actions/get-users';
 
 interface User {
   id: string;
-  name: string;
+  name: string | null;
   email: string;
   role: string;
   permissions: {
@@ -26,53 +26,27 @@ interface User {
   };
 }
 
-// Datos mock de usuarios
-const MOCK_USERS: User[] = [
-  {
-    id: '1',
-    name: 'Administrador',
-    email: 'admin@servysalud.com',
-    role: 'Administrador',
-    permissions: {
-      trabajoModificado: true,
-      vigilanciaMedica: true,
-      seguimientoTrabajadores: true,
-      seguridadHigiene: true,
-    }
-  },
-  {
-    id: '2',
-    name: 'Dr. Roberto',
-    email: 'roberto.medico@servysalud.com',
-    role: 'Médico',
-    permissions: {
-      trabajoModificado: true,
-      vigilanciaMedica: true,
-      seguimientoTrabajadores: true,
-      seguridadHigiene: false,
-    }
-  },
-  {
-    id: '3',
-    name: 'Ing. Ana',
-    email: 'ana.ingeniera@servysalud.com',
-    role: 'Ingeniero',
-    permissions: {
-      trabajoModificado: true,
-      vigilanciaMedica: false,
-      seguimientoTrabajadores: true,
-      seguridadHigiene: true,
-    }
+// Función para obtener inicial del nombre o email
+const getInitial = (name: string | null, email: string): string => {
+  if (name && name.trim()) {
+    return name.charAt(0).toUpperCase();
   }
-];
-
-// Función para obtener inicial del nombre
-const getInitial = (name: string): string => {
-  return name.charAt(0).toUpperCase();
+  if (email && email.trim()) {
+    return email.charAt(0).toUpperCase();
+  }
+  return 'U';
 };
 
-// Función para obtener color del avatar basado en el nombre
-const getAvatarColor = (name: string): string => {
+// Función para obtener nombre para mostrar
+const getDisplayName = (name: string | null, email: string): string => {
+  if (name && name.trim()) {
+    return name;
+  }
+  return 'Usuario Nuevo';
+};
+
+// Función para obtener color del avatar basado en el nombre o email
+const getAvatarColor = (name: string | null, email: string): string => {
   const colors = [
     'bg-blue-100 text-blue-700',
     'bg-green-100 text-green-700',
@@ -81,7 +55,8 @@ const getAvatarColor = (name: string): string => {
     'bg-pink-100 text-pink-700',
     'bg-indigo-100 text-indigo-700',
   ];
-  const index = name.charCodeAt(0) % colors.length;
+  const text = name || email || 'U';
+  const index = text.charCodeAt(0) % colors.length;
   return colors[index];
 };
 
@@ -106,17 +81,16 @@ export default function AccessManagement() {
       setIsLoadingUsers(true);
       try {
         const result = await getUsers();
-        if (result.success && result.users.length > 0) {
+        if (result.success) {
           setUsers(result.users);
+          console.log(`✅ ${result.users.length} usuarios cargados desde Supabase`);
         } else {
-          // Si no hay usuarios en Supabase, usar datos mock como fallback
-          console.warn('⚠️ No se encontraron usuarios en Supabase, usando datos mock');
-          setUsers(MOCK_USERS);
+          console.error('❌ Error al cargar usuarios:', result.message);
+          setUsers([]);
         }
       } catch (error: any) {
-        console.error('Error al cargar usuarios:', error);
-        // En caso de error, usar datos mock como fallback
-        setUsers(MOCK_USERS);
+        console.error('❌ Error inesperado al cargar usuarios:', error);
+        setUsers([]);
       } finally {
         setIsLoadingUsers(false);
       }
@@ -313,15 +287,16 @@ export default function AccessManagement() {
                       {/* Avatar */}
                       <div
                         className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${getAvatarColor(
-                          user.name
+                          user.name,
+                          user.email
                         )}`}
                       >
-                        {getInitial(user.name)}
+                        {getInitial(user.name, user.email)}
                       </div>
                       {/* Nombre y Email */}
                       <div>
                         <div className="font-semibold text-gray-900">
-                          {user.name}
+                          {getDisplayName(user.name, user.email)}
                         </div>
                         <div className="text-sm text-gray-500">{user.email}</div>
                       </div>
@@ -330,13 +305,15 @@ export default function AccessManagement() {
 
                   {/* Checkbox Trabajo Modificado */}
                   <td className="px-6 py-4 text-center">
-                    <label className="flex items-center justify-center cursor-pointer">
+                    <label className="flex items-center justify-center cursor-not-allowed">
                       <input
                         type="checkbox"
                         checked={user.permissions.trabajoModificado}
                         onChange={() =>
                           handlePermissionChange(user.id, 'trabajoModificado')
                         }
+                        disabled
+                        readOnly
                         className="sr-only"
                       />
                       <div
@@ -358,13 +335,15 @@ export default function AccessManagement() {
 
                   {/* Checkbox Vigilancia Médica */}
                   <td className="px-6 py-4 text-center">
-                    <label className="flex items-center justify-center cursor-pointer">
+                    <label className="flex items-center justify-center cursor-not-allowed">
                       <input
                         type="checkbox"
                         checked={user.permissions.vigilanciaMedica}
                         onChange={() =>
                           handlePermissionChange(user.id, 'vigilanciaMedica')
                         }
+                        disabled
+                        readOnly
                         className="sr-only"
                       />
                       <div
@@ -386,7 +365,7 @@ export default function AccessManagement() {
 
                   {/* Checkbox Seguimiento de Trabajadores */}
                   <td className="px-6 py-4 text-center">
-                    <label className="flex items-center justify-center cursor-pointer">
+                    <label className="flex items-center justify-center cursor-not-allowed">
                       <input
                         type="checkbox"
                         checked={user.permissions.seguimientoTrabajadores}
@@ -396,6 +375,8 @@ export default function AccessManagement() {
                             'seguimientoTrabajadores'
                           )
                         }
+                        disabled
+                        readOnly
                         className="sr-only"
                       />
                       <div
@@ -417,13 +398,15 @@ export default function AccessManagement() {
 
                   {/* Checkbox Seguridad e Higiene */}
                   <td className="px-6 py-4 text-center">
-                    <label className="flex items-center justify-center cursor-pointer">
+                    <label className="flex items-center justify-center cursor-not-allowed">
                       <input
                         type="checkbox"
                         checked={user.permissions.seguridadHigiene}
                         onChange={() =>
                           handlePermissionChange(user.id, 'seguridadHigiene')
                         }
+                        disabled
+                        readOnly
                         className="sr-only"
                       />
                       <div
