@@ -122,7 +122,8 @@ export default function AccessManagement() {
           
           // Cargar usuarios directamente
           const result = await getUsers();
-          if (result.success) {
+          console.log('🔍 [SuperAdmin] Resultado de getUsers:', result);
+          if (result.success && result.users && result.users.length > 0) {
             const normalizedUsers: User[] = result.users.map((user: any) => ({
               ...user,
               permissions: {
@@ -132,8 +133,13 @@ export default function AccessManagement() {
                 seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
               },
             }));
+            console.log('✅ [SuperAdmin] Usuarios normalizados:', normalizedUsers.length);
             setUsers(normalizedUsers);
             setLocalUsers(normalizedUsers);
+          } else {
+            console.warn('⚠️ [SuperAdmin] No se encontraron usuarios o result.success es false:', result);
+            setUsers([]);
+            setLocalUsers([]);
           }
           setIsLoadingUsers(false);
           return;
@@ -164,7 +170,8 @@ export default function AccessManagement() {
         setIsCheckingAdmin(false);
 
         // Procesar usuarios solo si es admin
-        if (userIsAdmin && usersResult.success) {
+        console.log('🔍 [Admin] Verificación:', { userIsAdmin, usersResultSuccess: usersResult.success, usersCount: usersResult.users?.length || 0 });
+        if (userIsAdmin && usersResult.success && usersResult.users && usersResult.users.length > 0) {
           const normalizedUsers: User[] = usersResult.users.map((user: any) => ({
             ...user,
             permissions: {
@@ -174,12 +181,15 @@ export default function AccessManagement() {
               seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
             },
           }));
+          console.log('✅ [Admin] Usuarios normalizados:', normalizedUsers.length);
           setUsers(normalizedUsers);
           setLocalUsers(normalizedUsers);
         } else {
+          console.warn('⚠️ [Admin] No se establecieron usuarios:', { userIsAdmin, success: usersResult.success, users: usersResult.users?.length || 0 });
           setUsers([]);
           setLocalUsers([]);
         }
+        setIsLoadingUsers(false);
       } catch (error: any) {
         console.error('Error al inicializar datos:', error);
         setIsAdmin(false);
@@ -734,7 +744,7 @@ export default function AccessManagement() {
               <p className="text-sm text-gray-500">Cargando usuarios...</p>
             </div>
           </div>
-        ) : users.length === 0 ? (
+        ) : localUsers.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <p className="text-gray-500 mb-2">No hay usuarios registrados</p>
