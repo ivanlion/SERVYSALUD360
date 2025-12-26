@@ -21,7 +21,7 @@ interface DashboardProps {
 
 // Interfaz para los datos que vienen de Supabase
 interface SupabaseRecord {
-  id?: number; // ID de Supabase para eliminar
+  id?: number | string; // ID de Supabase (puede ser número o UUID)
   fecha_registro: string;
   apellidos_nombre: string;
   dni_ce_pas: string;
@@ -37,7 +37,7 @@ interface SupabaseRecord {
 
 // Extender CaseData para incluir el ID de Supabase
 interface CaseDataWithSupabaseId extends CaseData {
-  supabaseId?: number;
+  supabaseId?: number | string;
 }
 
 export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
@@ -54,10 +54,16 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
    * @returns Objeto CaseData mapeado con ID de Supabase
    */
   const mapSupabaseToCaseData = (record: SupabaseRecord, index: number): CaseDataWithSupabaseId => {
+    // Asegurarse de que el ID de Supabase esté presente
+    const supabaseId = record.id;
+    if (!supabaseId) {
+      console.warn('Registro sin ID de Supabase:', record);
+    }
+    
     return {
       ...INITIAL_CASE,
       id: `PO-0006-${String(index + 1).padStart(3, '0')}`, // Generar ID temporal
-      supabaseId: record.id, // Guardar el ID real de Supabase
+      supabaseId: supabaseId, // Guardar el ID real de Supabase
       status: 'ACTIVO', // Valor por defecto ya que no está en la tabla
       createdAt: record.fecha_registro || new Date().toISOString(),
       fecha: record.fecha_registro || '',
@@ -200,30 +206,66 @@ export default function Dashboard({ onEdit, onCreate }: DashboardProps) {
     // Si no hay ID de Supabase, no se puede eliminar
     if (!caseData.supabaseId) {
       alert('Error: No se puede eliminar este registro. Falta el ID de la base de datos.');
+      console.error('No se encontró supabaseId en:', caseData);
       return;
     }
 
     setDeletingId(caseData.id);
 
     try {
+      console.log('Intentando eliminar registro:', {
+        caseId: caseData.id,
+        supabaseId: caseData.supabaseId,
+        trabajador: caseData.trabajadorNombre,
+        dni: caseData.dni
+      });
+      
       // Eliminar de Supabase usando el ID real
-      const { error: deleteError } = await supabase
+      const { data, error: deleteError } = await supabase
         .from('registros_trabajadores')
         .delete()
-        .eq('id', caseData.supabaseId);
+        .eq('id', caseData.supabaseId)
+        .select();
 
       if (deleteError) {
+        console.error('Error de Supabase al eliminar:', deleteError);
         throw deleteError;
       }
 
-      // Eliminar del estado local
-      setCases(prevCases => prevCases.filter(c => c.id !== caseData.id));
+      console.log('Registro eliminado exitosamente. Respuesta:', data);
+
+      // Recargar los datos desde Supabase para asegurar que esté actualizado
+      const { data: refreshedData, error: refreshError } = await supabase
+        .from('registros_trabajadores')
+        .select('*')
+        .order('fecha_registro', { ascending: false });
+
+      if (refreshError) {
+        console.error('Error al recargar datos:', refreshError);
+        // Aun así, actualizar el estado local
+        setCases(prevCases => prevCases.filter(c => c.id !== caseData.id));
+      } else if (refreshedData) {
+        // Actualizar con los datos frescos de Supabase
+        const mappedCases = refreshedData.map((record: any, index: number) => 
+          mapSupabaseToCaseData(record as SupabaseRecord, index)
+        );
+        setCases(mappedCases);
+      } else {
+        // Si no hay datos, simplemente eliminar del estado local
+        setCases(prevCases => prevCases.filter(c => c.id !== caseData.id));
+      }
       
       // Mostrar mensaje de éxito
       alert(`Registro de ${caseData.trabajadorNombre} eliminado exitosamente.`);
     } catch (err: any) {
       console.error('Error al eliminar registro:', err);
-      alert(`Error al eliminar el registro: ${err.message || 'Error desconocido'}`);
+      console.error('Detalles del error:', {
+        message: err.message,
+        details: err.details,
+        hint: err.hint,
+        code: err.code
+      });
+      alert(`Error al eliminar el registro: ${err.message || 'Error desconocido'}\n\nPor favor, verifica la consola del navegador para más detalles.`);
     } finally {
       setDeletingId(null);
     }
