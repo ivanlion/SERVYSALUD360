@@ -29,7 +29,7 @@ interface SidebarItem {
   label: string;
   icon: React.ReactNode;
   href: string;
-  view?: 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT';
+  view?: 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT' | 'WORK_MODIFIED_DASHBOARD';
   hasSubItems?: boolean;
 }
 
@@ -44,7 +44,7 @@ const menuItems: SidebarItem[] = [
     label: 'Trabajo Modificado',
     icon: <FileText size={20} />,
     href: '/',
-    view: 'DASHBOARD' as const
+    view: 'WORK_MODIFIED_DASHBOARD' as const
   },
   {
     label: 'Vigilancia Médica',

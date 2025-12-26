@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Dashboard from '../components/Dashboard';
+import WorkModifiedDashboard from '../components/WorkModifiedDashboard';
 import CaseForm from '../components/CaseForm';
 import AccessManagement from '../components/AccessManagement';
 import AuthGuard from '../components/AuthGuard';
@@ -581,6 +582,12 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
             onEdit={handleEditCase} 
             onCreate={handleCreateNew}
             user={user}
+          />
+        )}
+        {currentView === 'WORK_MODIFIED_DASHBOARD' && (
+          <WorkModifiedDashboard 
+            onEdit={handleEditCase} 
+            onCreate={handleCreateNew}
           />
         )}
         {(currentView === 'NEW_CASE' || currentView === 'EDIT_CASE') && (
