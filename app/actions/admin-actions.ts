@@ -206,7 +206,6 @@ export async function updateUser(formData: FormData) {
       .from('profiles')
       .update({
         full_name: nombre,
-        nombre: nombre, // Compatibilidad
         rol: rol,
         role: rol, // Compatibilidad
       })
@@ -226,7 +225,6 @@ export async function updateUser(formData: FormData) {
       {
         user_metadata: {
           full_name: nombre,
-          nombre: nombre,
           rol: rol,
           role: rol,
         },
