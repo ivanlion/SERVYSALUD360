@@ -12,9 +12,11 @@ import { cookies } from 'next/headers';
 async function verifyAdmin() {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl) {
+      console.error('❌ NEXT_PUBLIC_SUPABASE_URL no está configurada');
       return {
         isAdmin: false,
         userId: null,
@@ -22,54 +24,182 @@ async function verifyAdmin() {
       };
     }
 
-    // Crear cliente de Supabase para verificar el usuario actual
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
-
-    // Obtener el usuario actual desde las cookies
-    const cookieStore = await cookies();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
+    if (!supabaseServiceRoleKey && !supabaseAnonKey) {
+      console.error('❌ No hay clave de Supabase configurada (ni SERVICE_ROLE_KEY ni ANON_KEY)');
       return {
         isAdmin: false,
         userId: null,
-        error: 'Usuario no autenticado',
+        error: 'Variables de entorno no configuradas',
       };
     }
 
+    // Obtener el usuario actual desde las cookies usando cookies() de Next.js
+    const cookieStore = await cookies();
+    
+    // Obtener todas las cookies para debugging
+    const allCookies = cookieStore.getAll();
+    console.log('🔍 [verifyAdmin] Cookies disponibles:', allCookies.map(c => c.name).join(', '));
+    
+    // Buscar el token de acceso en las cookies de Supabase
+    // Supabase almacena el token en cookies con formato: sb-<project-ref>-auth-token
+    const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || '';
+    const authCookieName = `sb-${projectRef}-auth-token`;
+    
+    // Buscar también otras posibles cookies de Supabase
+    const supabaseCookies = allCookies.filter(c => 
+      c.name.includes('supabase') || 
+      c.name.includes('sb-') || 
+      c.name.includes('auth') ||
+      c.name.includes('access-token')
+    );
+    
+    console.log('🔍 [verifyAdmin] Cookies de Supabase encontradas:', supabaseCookies.map(c => c.name).join(', '));
+    console.log('🔍 [verifyAdmin] Buscando cookie específica:', authCookieName);
+    
+    // Crear cliente de Supabase con Anon Key para obtener el usuario actual
+    // En Server Actions, necesitamos pasar las cookies manualmente
+    const supabase = createClient(supabaseUrl, supabaseAnonKey!, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+      global: {
+        headers: {
+          // Intentar pasar las cookies si están disponibles
+          Cookie: allCookies.map(c => `${c.name}=${c.value}`).join('; '),
+        },
+      },
+    });
+    
+    // Intentar obtener el usuario directamente
+    // Si esto falla, intentaremos con el Service Role Key
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    // Si no se puede obtener el usuario con Anon Key, intentar con Service Role Key
+    // Esto es necesario porque en Server Actions las cookies pueden no estar disponibles
+    let currentUser = user;
+    
+    if (userError || !currentUser) {
+      console.warn('⚠️ [verifyAdmin] No se pudo obtener usuario con Anon Key, intentando con Service Role Key');
+      console.warn('⚠️ [verifyAdmin] Error:', userError?.message);
+      
+      // Si tenemos Service Role Key, intentar obtener el usuario desde las cookies manualmente
+      if (supabaseServiceRoleKey) {
+        // Buscar el access_token en las cookies
+        const accessTokenCookie = supabaseCookies.find(c => 
+          c.name.includes('access-token') || 
+          c.value.includes('eyJ') // Los JWT suelen empezar con 'eyJ'
+        );
+        
+        if (accessTokenCookie) {
+          console.log('🔍 [verifyAdmin] Token encontrado en cookie:', accessTokenCookie.name);
+          // Intentar decodificar el token o usar el Service Role Key para verificar
+        }
+        
+        // Como último recurso, si no podemos obtener el usuario, retornar error
+        // pero esto debería ser raro en producción
+        console.error('❌ [verifyAdmin] Usuario no autenticado:', userError?.message || 'No se encontró usuario');
+        return {
+          isAdmin: false,
+          userId: null,
+          error: 'Usuario no autenticado. Por favor, inicia sesión nuevamente.',
+        };
+      } else {
+        console.error('❌ [verifyAdmin] Usuario no autenticado y no hay Service Role Key');
+        return {
+          isAdmin: false,
+          userId: null,
+          error: 'Usuario no autenticado',
+        };
+      }
+    }
+
+    console.log('✅ [verifyAdmin] Usuario encontrado:', { 
+      id: currentUser.id, 
+      email: currentUser.email,
+      user_metadata: currentUser.user_metadata 
+    });
+
+    // Usar Service Role Key para consultar profiles sin restricciones RLS
+    if (!supabaseServiceRoleKey) {
+      console.error('❌ [verifyAdmin] SUPABASE_SERVICE_ROLE_KEY no está configurada');
+      return {
+        isAdmin: false,
+        userId: currentUser?.id || null,
+        error: 'Service Role Key no configurada',
+      };
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
     // Verificar el rol del usuario en la tabla profiles
-    const { data: profile, error: profileError } = await supabase
+    const { data: currentUserProfile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('rol, role')
-      .eq('id', user.id)
+      .eq('id', currentUser.id)
       .single();
 
+    // Log de depuración completo
+    console.log('🔍 [verifyAdmin] Admin Check - Perfil encontrado:', {
+      profile: currentUserProfile,
+      profileError: profileError?.message,
+      profileErrorCode: profileError?.code,
+      profileErrorDetails: profileError?.details,
+      userId: currentUser.id,
+    });
+
     if (profileError) {
+      console.warn('⚠️ [verifyAdmin] Error al obtener perfil:', profileError.message);
+      console.warn('⚠️ [verifyAdmin] Código de error:', profileError.code);
+      
       // Si no hay perfil, verificar en user_metadata
-      const role = user.user_metadata?.rol || user.user_metadata?.role || '';
-      const isAdmin = role === 'Administrador' || role === 'Admin';
+      const role = currentUser.user_metadata?.rol || currentUser.user_metadata?.role || '';
+      console.log('🔍 [verifyAdmin] Rol desde user_metadata:', role);
+      
+      // Verificar múltiples variantes del rol de administrador (case-insensitive)
+      const roleLower = role?.toLowerCase() || '';
+      const isAdmin = roleLower === 'admin' || 
+                     role === 'Administrador' || 
+                     role === 'Admin' ||
+                     roleLower === 'administrador';
+      
+      console.log('🔍 [verifyAdmin] Es admin?', isAdmin, '(rol:', role, ', roleLower:', roleLower, ')');
+      
       return {
         isAdmin,
-        userId: user.id,
+        userId: currentUser.id,
         error: null,
       };
     }
 
-    const role = profile.rol || profile.role || '';
-    const isAdmin = role === 'Administrador' || role === 'Admin';
+    // Obtener el rol del perfil
+    const role = currentUserProfile?.rol || currentUserProfile?.role || '';
+    console.log('🔍 [verifyAdmin] Rol desde profiles:', role);
+    console.log('🔍 [verifyAdmin] Perfil completo:', currentUserProfile);
+    
+    // Verificar múltiples variantes del rol de administrador (case-insensitive)
+    const roleLower = role?.toLowerCase() || '';
+    const isAdmin = roleLower === 'admin' || 
+                   role === 'Administrador' || 
+                   role === 'Admin' ||
+                   roleLower === 'administrador';
+    
+    console.log('🔍 [verifyAdmin] Es admin?', isAdmin, '(rol:', role, ', rolLower:', roleLower, ')');
 
     return {
       isAdmin,
-      userId: user.id,
+      userId: currentUser.id,
       error: null,
     };
   } catch (error: any) {
-    console.error('Error al verificar admin:', error);
+    console.error('❌ [verifyAdmin] Error al verificar admin:', error);
+    console.error('❌ [verifyAdmin] Stack trace:', error.stack);
     return {
       isAdmin: false,
       userId: null,
