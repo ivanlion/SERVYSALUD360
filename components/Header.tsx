@@ -306,8 +306,8 @@ export default function Header() {
         {/* Avatar Usuario con Dropdown */}
         {user && (
           <div className="relative flex items-center gap-2" ref={dropdownRef}>
-            {/* Botones condicionales para Trabajo Modificado */}
-            {(currentView === 'NEW_CASE' || currentView === 'EDIT_CASE') && (
+            {/* Botón "Nuevo Caso" solo aparece cuando se está editando un caso, NO cuando se está creando uno nuevo */}
+            {currentView === 'EDIT_CASE' && (
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleCreateNew}

@@ -151,3 +151,4 @@ Si después de seguir estos pasos el problema persiste:
 2. Verifica la estructura de tu tabla en Supabase
 3. Revisa las políticas RLS configuradas
 
+

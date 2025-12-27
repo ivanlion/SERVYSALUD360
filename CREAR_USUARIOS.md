@@ -128,3 +128,4 @@ Para cargar usuarios reales desde Supabase en lugar de datos mock:
 2. Usa el cliente de Supabase para obtener los usuarios
 3. Mapea los datos de `profiles` al formato `User` del componente
 
+
