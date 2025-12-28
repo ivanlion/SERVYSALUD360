@@ -152,3 +152,4 @@ Si después de seguir estos pasos el problema persiste:
 3. Revisa las políticas RLS configuradas
 
 
+

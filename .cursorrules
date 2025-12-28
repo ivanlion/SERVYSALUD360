@@ -1,0 +1,32 @@
+# Cursor Rules para SERVYSALUD360 MCP Server
+
+## Configuración MCP Server
+
+Este proyecto incluye un servidor MCP (Model Context Protocol) que expone herramientas para interactuar con Supabase.
+
+### Endpoint MCP
+- URL: `http://localhost:3000/api/mcp`
+- Formato: JSON-RPC 2.0
+
+### Herramientas Disponibles
+
+#### Casos
+- `casos_listar` - Lista casos de trabajo modificado
+- `casos_obtener` - Obtiene un caso por ID
+- `casos_buscar` - Busca casos por término
+
+#### Trabajadores
+- `trabajadores_listar` - Lista trabajadores
+- `trabajadores_obtener` - Obtiene trabajador por DNI
+
+#### Exámenes
+- `examenes_listar` - Lista exámenes médicos
+
+#### Storage
+- `storage_listar` - Lista archivos en bucket
+- `storage_descargar` - Descarga archivo
+
+### Uso desde Cursor Chat
+
+Para usar las herramientas MCP desde Cursor Chat, el servidor debe estar corriendo en `http://localhost:3000` y puedes referenciar las herramientas por su nombre.
+

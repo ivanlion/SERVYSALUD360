@@ -113,3 +113,4 @@ Para más ayuda, consulta la documentación oficial de Supabase:
 - [Supabase Auth Docs](https://supabase.com/docs/guides/auth)
 
 
+

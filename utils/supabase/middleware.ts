@@ -68,20 +68,23 @@ export async function updateSession(request: NextRequest) {
     error,
   } = await supabase.auth.getUser();
 
-  // Log para debugging (solo en desarrollo)
+  // Log para debugging (solo en desarrollo y solo para errores no esperados)
+  // NO loguear "Auth session missing" ya que es normal cuando el usuario no ha iniciado sesión
   if (error) {
-    // Verificar si es el error específico "Auth session missing"
-    if (error.message?.includes('Auth session missing') || error.message?.includes('session missing')) {
-      console.warn('⚠️ [middleware] Auth session missing - Las cookies no están disponibles o han expirado');
-      console.warn('⚠️ [middleware] Esto puede ocurrir si el usuario no ha iniciado sesión o la sesión expiró');
-    } else if (process.env.NODE_ENV === 'development') {
+    // Solo loguear errores que NO sean "session missing" (que es esperado cuando no hay sesión)
+    const isSessionMissing = error.message?.includes('Auth session missing') || 
+                            error.message?.includes('session missing') ||
+                            error.message?.includes('JWT expired') ||
+                            error.status === 401;
+    
+    if (!isSessionMissing && process.env.NODE_ENV === 'development') {
+      // Solo loguear errores inesperados
       console.warn('⚠️ [middleware] Error al obtener usuario:', error.message);
       console.warn('⚠️ [middleware] Código de error:', error.status);
     }
-  } else if (user && process.env.NODE_ENV === 'development') {
-    // Log exitoso solo en desarrollo para no saturar logs en producción
-    console.log('✅ [middleware] Sesión válida para usuario:', user.email);
+    // Si es "session missing", no loguear nada (es comportamiento esperado)
   }
+  // Tampoco loguear sesiones válidas para reducir ruido (solo si necesitas debug específico)
 
   // Devolver la respuesta con las cookies actualizadas
   // Esto asegura que las cookies se envíen al navegador y persistan

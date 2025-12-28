@@ -5,7 +5,10 @@
  * de autenticación de Supabase, permitiendo que las Server Actions
  * puedan leer correctamente la sesión del usuario.
  * 
- * NOTA: Ignorar el aviso de 'proxy' - Supabase requiere el middleware estándar.
+ * NOTA SOBRE EL WARNING DE "proxy":
+ * Next.js 16 sugiere usar "proxy" en lugar de "middleware", pero el middleware
+ * estándar sigue funcionando perfectamente y es la forma recomendada por Supabase
+ * para manejar autenticación con cookies. Este warning se puede ignorar de forma segura.
  * 
  * @module middleware
  */

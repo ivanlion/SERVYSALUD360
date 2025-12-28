@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
   // Compresión (habilitada por defecto en Next.js 16)
   compress: true,
   
+  // Transpilar módulos externos (incluyendo mcp-server)
+  transpilePackages: ['@servysalud360/mcp-server'],
+  
   // Headers de seguridad y rendimiento
   async headers() {
     return [
