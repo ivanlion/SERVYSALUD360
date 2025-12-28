@@ -41,14 +41,10 @@ export async function POST(request: NextRequest) {
     // Importar dinámicamente el servidor MCP (permite mejor tree-shaking)
     // El servidor MCP debería exportar una función handleRequest o similar
     // Next.js transpilará automáticamente el TypeScript gracias a transpilePackages
-    const mcpServer = await import('../../../mcp-server/src/index');
+    const mcpServer = await import('../../../mcp-server/src/index') as any;
     
-    // El servidor MCP puede exportar handleRequest de diferentes formas
-    const handleRequest = 
-      mcpServer.handleRequest || 
-      mcpServer.default?.handleRequest || 
-      mcpServer.default ||
-      (typeof mcpServer === 'function' ? mcpServer : null);
+    // El servidor MCP exporta handleRequest directamente
+    const handleRequest = mcpServer.handleRequest;
     
     if (!handleRequest || typeof handleRequest !== 'function') {
       throw new Error('MCP Server no exporta una función handleRequest válida');
