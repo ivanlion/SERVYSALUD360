@@ -26,6 +26,10 @@ export const casosTools: Tool[] = [
           description: 'Filtrar por estado (ACTIVO, CERRADO)',
           enum: ['ACTIVO', 'CERRADO'],
         },
+        empresa_id: {
+          type: 'string',
+          description: 'ID de la empresa para filtrar casos (opcional, para multi-tenancy)',
+        },
       },
     },
   },
@@ -69,7 +73,7 @@ export async function handleCasosTool(
 ): Promise<any> {
   switch (toolName) {
     case 'casos_listar': {
-      const { limit = 100, status } = args;
+      const { limit = 100, status, empresa_id } = args;
       
       let query = supabase
         .from('casos')
@@ -78,6 +82,11 @@ export async function handleCasosTool(
       
       if (status) {
         query = query.eq('status', status);
+      }
+      
+      // Filtrar por empresa si se proporciona (multi-tenancy)
+      if (empresa_id) {
+        query = query.eq('empresa_id', empresa_id);
       }
       
       const { data, error } = await query.order('fecha', { ascending: false });

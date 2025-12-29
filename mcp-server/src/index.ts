@@ -103,6 +103,20 @@ export async function handleRequest(request: any): Promise<any> {
         const { name, arguments: args } = params || {};
         const supabase = initSupabaseClient();
         const result = await handleToolCall(name, args || {}, supabase);
+        
+        // Si el resultado tiene isError: true, convertirlo en un error JSON-RPC
+        if (result && result.isError === true) {
+          const errorMessage = result.content?.[0]?.text || 'Error desconocido en la herramienta';
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32603,
+              message: errorMessage,
+            },
+          };
+        }
+        
         return {
           jsonrpc: '2.0',
           id,

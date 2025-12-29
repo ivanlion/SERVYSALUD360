@@ -6,9 +6,11 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SupabaseClient } from '@supabase/supabase-js';
-// Importar servicio de Gemini para análisis de documentos (disponible para uso futuro)
-// La función analyzeDocument está disponible para ser usada en futuras herramientas
 import { analyzeDocument } from '../services/gemini';
+import { EMO_ANALYSIS_PROMPT } from '../../../lib/prompts/emo-analysis';
+import { validatePDF, needsPreprocessing } from '../services/pdf-validator';
+import { processImage } from '../services/image-processor';
+import { analyzeScannedPDFWithOCR } from '../services/ocr-fallback';
 
 /**
  * Define las herramientas relacionadas con exámenes médicos
@@ -27,6 +29,10 @@ export const examenesTools: Tool[] = [
         trabajador_id: {
           type: 'string',
           description: 'ID del trabajador para filtrar exámenes',
+        },
+        empresa_id: {
+          type: 'string',
+          description: 'ID de la empresa para filtrar exámenes (opcional, para multi-tenancy)',
         },
       },
     },
@@ -61,7 +67,7 @@ export async function handleExamenesTool(
 ): Promise<any> {
   switch (toolName) {
     case 'examenes_listar': {
-      const { limit = 100, trabajador_id } = args;
+      const { limit = 100, trabajador_id, empresa_id } = args;
       
       let query = supabase
         .from('examenes_medicos')
@@ -70,6 +76,11 @@ export async function handleExamenesTool(
       
       if (trabajador_id) {
         query = query.eq('trabajador_id', trabajador_id);
+      }
+      
+      // Filtrar por empresa si se proporciona (multi-tenancy)
+      if (empresa_id) {
+        query = query.eq('empresa_id', empresa_id);
       }
       
       const { data, error } = await query.order('fecha_examen', { ascending: false });
@@ -112,94 +123,166 @@ export async function handleExamenesTool(
       }
 
       try {
+        // ============================================
+        // PASO 1: VALIDACIÓN DEL PDF
+        // ============================================
+        console.log(`[Examenes] Validando PDF...`);
+        const validation = await validatePDF(pdf_base64);
+        
+        if (!validation.isValid) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error: 'PDF inválido',
+                  error_details: {
+                    message: validation.error || 'El archivo PDF no es válido',
+                    size_mb: validation.sizeInMB.toFixed(2),
+                    type: validation.type
+                  },
+                  suggestions: [
+                    'Verifique que el archivo sea un PDF válido',
+                    validation.sizeInMB > 20 ? 'El archivo es demasiado grande. Considere comprimirlo.' : null,
+                    'Intente descargar el archivo nuevamente'
+                  ].filter(Boolean)
+                }, null, 2),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        console.log(`[Examenes] PDF válido: ${validation.type} (${validation.sizeInMB.toFixed(2)}MB, ${validation.pageCount || '?'} páginas)`);
+
+        // ============================================
+        // PASO 2: PRE-PROCESAMIENTO (si es necesario)
+        // ============================================
+        let processedPdfBase64 = pdf_base64;
+        
+        if (needsPreprocessing(validation)) {
+          console.log(`[Examenes] PDF escaneado detectado. Aplicando pre-procesamiento...`);
+          try {
+            // Procesar imagen para mejorar calidad
+            processedPdfBase64 = await processImage(pdf_base64, {
+              enhanceContrast: true,
+              enhanceBrightness: true,
+              denoise: true,
+              resize: validation.sizeInMB > 5 ? {
+                maxWidth: 2000,
+                maxHeight: 2000,
+                quality: 85
+              } : undefined
+            });
+            console.log(`[Examenes] Pre-procesamiento completado`);
+          } catch (preprocessError: any) {
+            console.warn(`[Examenes] Error en pre-procesamiento, continuando con PDF original: ${preprocessError.message}`);
+            // Continuar con el PDF original si el pre-procesamiento falla
+          }
+        }
+
         // Usar thinking mode para análisis más cuidadoso (opcional, por defecto false)
         const useThinkingMode = use_thinking === true;
         
-        // Prompt especializado para extraer información médica estructurada (formato Antamina/MASS)
-        const analysisPrompt = `ROL: Eres un Auditor Médico de Salud Ocupacional experto en Vigilancia Médica y minería de datos clínicos.
+        // Usar prompt centralizado desde lib/prompts/emo-analysis.ts
+        const analysisPrompt = EMO_ANALYSIS_PROMPT;
 
-OBJETIVO: Extraer TODA la información clínica, técnica y antecedentes de los PDF (formato Antamina/MASS) para llenar una Matriz de Vigilancia Médica Integral en Excel.
 
-⚠️⚠️⚠️ INSTRUCCIÓN CRÍTICA PARA RESTRICCIONES (LEE ESTO PRIMERO) ⚠️⚠️⚠️
-
-Para los campos Restr_Lentes, Restr_Altura_1.8m y Restr_Elec en el CSV:
-
-1. Anclaje de Columnas (Pág 1): Localiza los encabezados 'No' y 'Si'. Establece sus coordenadas horizontales como límites fijos: 'No' = Izquierda, 'Si' = Derecha.
-
-2. Inspección de Marca: Para cada ítem de la tabla:
-   - Lentes correctores (Restr_Lentes): Identifica que la 'X' está físicamente bajo la columna de la derecha ('Si'). Si está bajo 'Si', reporta 'SI'. Si está bajo 'No', reporta 'NO'.
-   - Restricción para trabajos en altura física mayor a 1,8 metros (Restr_Altura_1.8m): Identifica que la marca está bajo la columna de la izquierda ('No'). Si está bajo 'No', reporta 'NO'. Si está bajo 'Si', reporta 'SI'.
-   - Restricción para trabajar con fibra óptica o cables eléctricos (Restr_Elec): Identifica que la marca está bajo la columna de la izquierda ('No'). Si está bajo 'No', reporta 'NO'. Si está bajo 'Si', reporta 'SI'.
-
-3. Prioridad de Imagen: Ignora el texto de "Recomendaciones" para determinar la restricción. La posición de la 'X' en la tabla es la única verdad para este campo.
-
-4. Salida Estricta: Si una marca está entre ambas columnas o es ilegible, devuelve 'ND' (indeterminado).
-
-REGLAS CRÍTICAS DE EXTRACCIÓN:
-
-Extracción de Datos por Coordenadas (Pág 1): Para las restricciones, localiza la fila correspondiente en la tabla y verifica la posición física de la 'X'.
-
-Reglas de validación estricta:
-- Mapeo Vertical: Determina si el centro del carácter 'X' cae dentro de los límites visuales de la columna 'SÍ' o de la columna 'NO'.
-- Cero Inferencia: Si la 'X' está ausente, desplazada o marcada en ambas, devuelve "ND" (no disponible).
-- Prohibición: No utilices el sentido de la frase o el contexto de otras filas para deducir la posición. Solo reporta lo que es físicamente visible en esa coordenada.
-
-Datos Numéricos: Extrae el valor exacto (ej: "158"). Si no hay dato o no se realizó, pon "ND".
-
-Tipo de Examen: Identifica si es Pre-ocupacional, Anual o Retiro.
-
-Exhaustividad: Busca en todas las páginas (Anexos 16, Especialidades, Laboratorio, etc.).
-
-FORMATO DE SALIDA (ESTRICTO):
-
-PARTE 1: RESUMEN CLÍNICO (Lectura Humana)
-
-Genera un resumen punteo (bullet points) agrupado por:
-
-Datos Generales y Aptitud.
-
-Hallazgos Críticos (Patologías encontradas).
-
-Resumen de Interconsultas pendientes.
-
-PARTE 2: BLOQUE DE CÓDIGO CSV (Para Excel)
-
-Genera un bloque de código CSV separado por punto y coma (;).
-
-Usa EXACTAMENTE estos encabezados en la primera línea (Una sola línea larga):
-
-Fecha_EMO;Centro_Medico;Tipo_Examen;DNI;Nombre;Edad;Sexo;Puesto;Empresa;Aptitud_Final;Vencimiento;Restr_Lentes;Restr_Altura_1.8m;Restr_Elec;Recomendaciones_Grales;Ant_Personales;Habitos_Nocivos;Ant_Familiares;PA_Sistolica;PA_Diastolica;FC;SatO2;Peso;Talla;IMC;Cintura;Cadera;Aptitud_Espalda_Score;Hallazgos_Musculo;Aptitud_Gran_Altura;Aptitud_Altura_Estructural;EKG_Ritmo;Vis_Lejos_OD_SC;Vis_Lejos_OI_SC;Vis_Lejos_OD_CC;Vis_Lejos_OI_CC;Vision_Colores;Vision_Profundidad;Dx_Oftalmo;Dx_Audio;Espiro_Conclusion;FVC_Valor;FEV1_Valor;Rx_Torax_OIT;Aptitud_Psico;Odonto_Estado;Hb;Hto;Leucocitos;Plaquetas;Glucosa;Col_Total;HDL;LDL;Trigliceridos;Ex_Orina;Toxicologico;Grupo_Sangre
-
-Instrucciones para llenar los campos del CSV:
-
-Ant_Personales: Resume patologías marcadas en Anexo 16 (ej. "Gastritis, Miopía"). Si todo NO, pon "Niega".
-
-Habitos_Nocivos: Resume consumo (ej. "Alcohol social, Tabaco niega").
-
-Aptitud_Espalda_Score: Valor numérico de la Ficha Musculoesquelética (ej. "4/4" o "Excelente").
-
-Aptitud_Gran_Altura: Resultado del Anexo 16A (>2500msnm).
-
-Aptitud_Altura_Estructural: Resultado del examen (>1.8m) y test vestibular.
-
-Dx_Oftalmo: Diagnóstico final (ej. "Emetropía", "Ametropía", "Presbicia").
-
-Dx_Audio: Diagnóstico final (ej. "Normoacusia", "Trauma Acústico").
-
-Odonto_Estado: Resumen (ej. "Sano", "Caries: 2", "Gingivitis").
-
-Toxicologico: Resultado global (Negativo/Positivo).
-
-Restr_Lentes, Restr_Altura_1.8m, Restr_Elec: Aplica las instrucciones críticas de arriba para cada una de estas restricciones. Verifica la posición física de la 'X' en la fila correspondiente de la tabla de restricciones en la Pág 1.
-
-Usa punto y coma (;) como separador.`;
-
-        // Analizar el documento con Gemini (usar thinking mode si está habilitado)
-        const analysisResult = await analyzeDocument(
-          analysisPrompt,
-          pdf_base64,
-          useThinkingMode
-        );
+        // ============================================
+        // PASO 3: ANÁLISIS CON GEMINI (con retry y fallback a OCR)
+        // ============================================
+        console.log(`[Examenes] Iniciando análisis con Gemini (${validation.type} PDF, ${validation.sizeInMB.toFixed(2)}MB)`);
+        
+        let analysisResult: string;
+        let usedOCR = false;
+        
+        try {
+          // Intentar análisis con Gemini (3 intentos con backoff exponencial)
+          analysisResult = await analyzeDocument(
+            analysisPrompt,
+            processedPdfBase64,
+            useThinkingMode,
+            3 // maxRetries
+          );
+          console.log(`[Examenes] Análisis con Gemini completado exitosamente`);
+        } catch (geminiError: any) {
+          // Si Gemini falla y el PDF es escaneado, intentar OCR como fallback
+          if (validation.isScanned || validation.type === 'scanned') {
+            console.log(`[Examenes] Gemini falló. Intentando OCR como fallback...`);
+            try {
+              analysisResult = await analyzeScannedPDFWithOCR(
+                processedPdfBase64,
+                analysisPrompt
+              );
+              usedOCR = true;
+              console.log(`[Examenes] Análisis con OCR completado exitosamente`);
+            } catch (ocrError: any) {
+              // Si OCR también falla, lanzar error combinado
+              console.error(`[Examenes] Tanto Gemini como OCR fallaron`);
+              const errorDetails = {
+                error_type: 'ANALYSIS_FAILED',
+                message: `Análisis falló: Gemini (${geminiError?.message || 'unknown'}) y OCR (${ocrError?.message || 'unknown'})`,
+                gemini_error: geminiError?.message || 'Unknown',
+                ocr_error: ocrError?.message || 'Unknown',
+                pdf_size_mb: validation.sizeInMB.toFixed(2),
+                pdf_type: validation.type,
+                timestamp: new Date().toISOString()
+              };
+              
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      error: 'Error al analizar el examen médico: tanto Gemini como OCR fallaron',
+                      error_details: errorDetails,
+                      suggestions: [
+                        'Verifique que el PDF no esté corrupto',
+                        'Intente comprimir el PDF si es muy grande',
+                        'Verifique la conexión a la API de Gemini',
+                        'El PDF puede requerir procesamiento manual'
+                      ]
+                    }, null, 2),
+                  },
+                ],
+                isError: true,
+              };
+            }
+          } else {
+            // Si no es escaneado, solo lanzar error de Gemini
+            const errorDetails = {
+              error_type: 'GEMINI_API_ERROR',
+              message: geminiError?.message || 'Error desconocido de Gemini API',
+              code: geminiError?.lastError?.code || geminiError?.code || 'UNKNOWN',
+              status: geminiError?.lastError?.status || geminiError?.status || 'UNKNOWN',
+              attempts: geminiError?.attempts || [],
+              isRetryable: geminiError?.isRetryable || false,
+              pdf_size_mb: validation.sizeInMB.toFixed(2),
+              timestamp: new Date().toISOString()
+            };
+            
+            console.error(`[Examenes] Error en análisis de Gemini:`, errorDetails);
+            
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    error: 'Error al analizar el examen médico con Gemini AI',
+                    error_details: errorDetails,
+                    suggestions: [
+                      geminiError?.isRetryable ? 'El error es recuperable. Se recomienda reintentar.' : 'El error no es recuperable. Verifique el archivo PDF.',
+                      validation.sizeInMB > 10 ? 'El archivo es muy grande. Considere comprimirlo.' : null,
+                      'Verifique que el PDF no esté corrupto.',
+                      'Verifique la conexión a la API de Gemini.'
+                    ].filter(Boolean)
+                  }, null, 2),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
 
         // El nuevo formato devuelve texto con resumen clínico y CSV
         // Devolvemos la respuesta completa para que el usuario la procese
@@ -241,7 +324,15 @@ Usa punto y coma (;) como separador.`;
           
           const parsedData = {
             ...responseData,
-            csv_parseado: csvData
+            csv_parseado: csvData,
+            metadata: {
+              pdf_type: validation.type,
+              pdf_size_mb: validation.sizeInMB.toFixed(2),
+              page_count: validation.pageCount,
+              is_scanned: validation.isScanned,
+              used_ocr: usedOCR,
+              preprocessing_applied: needsPreprocessing(validation)
+            }
           };
 
           // Devolver la respuesta en el nuevo formato
@@ -254,14 +345,18 @@ Usa punto y coma (;) como separador.`;
             ],
           };
         } catch (parseError) {
+          console.error(`[Examenes] Error al parsear respuesta de Gemini:`, parseError);
           return {
             content: [
               {
                 type: 'text',
                 text: JSON.stringify({
                   error: 'Error al parsear la respuesta de Gemini',
-                  raw_response: analysisResult,
-                  parse_error: parseError instanceof Error ? parseError.message : String(parseError)
+                  error_type: 'PARSE_ERROR',
+                  raw_response_preview: analysisResult?.substring(0, 500) || 'N/A',
+                  raw_response_length: analysisResult?.length || 0,
+                  parse_error: parseError instanceof Error ? parseError.message : String(parseError),
+                  timestamp: new Date().toISOString()
                 }, null, 2),
               },
             ],
@@ -269,13 +364,23 @@ Usa punto y coma (;) como separador.`;
           };
         }
       } catch (error) {
+        // Error general no capturado anteriormente
+        const errorDetails = {
+          error_type: 'UNEXPECTED_ERROR',
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.error(`[Examenes] Error inesperado:`, errorDetails);
+        
         return {
           content: [
             {
               type: 'text',
               text: JSON.stringify({
-                error: 'Error al analizar el examen médico',
-                message: error instanceof Error ? error.message : String(error)
+                error: 'Error inesperado al analizar el examen médico',
+                error_details: errorDetails
               }, null, 2),
             },
           ],

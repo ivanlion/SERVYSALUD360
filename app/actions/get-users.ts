@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '../../utils/logger';
 
 /**
  * Server Action para obtener usuarios de Supabase
@@ -46,12 +47,16 @@ export async function getUsers() {
     // Nota: Solo seleccionar columnas que existen en la tabla (full_name, role - no rol)
     const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, role, permissions, created_at')
-      .order('created_at', { ascending: false });
+      .select('id, email, full_name, role, permissions, created_at', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .limit(100);
 
     // Si hay error pero no es porque la tabla no existe, retornar error
     if (profilesError && profilesError.code !== 'PGRST116') {
-      console.error('Error al obtener usuarios de profiles:', profilesError);
+      logger.error(profilesError instanceof Error ? profilesError : new Error('Error al obtener usuarios de profiles'), {
+        context: 'getUsers',
+        errorCode: profilesError.code
+      });
       return {
         success: false,
         message: profilesError.message || 'Error al obtener usuarios de profiles',
@@ -61,11 +66,52 @@ export async function getUsers() {
 
     // Si la tabla profiles existe (incluso si está vacía), procesar los datos
     if (!profilesError && profilesData !== null) {
-      // Si no hay datos, retornar array vacío pero con success: true
+      // Si no hay datos en profiles, intentar obtener desde auth.users
       if (profilesData.length === 0) {
+        console.log('[getUsers] No hay usuarios en profiles, intentando obtener desde auth.users...');
+        
+        // Intentar obtener desde auth.users si tenemos Service Role Key
+        if (supabaseServiceRoleKey) {
+          const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+            auth: {
+              autoRefreshToken: false,
+              persistSession: false,
+            },
+          });
+
+          const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
+
+          if (!authError && authData && authData.users) {
+            console.log(`[getUsers] Encontrados ${authData.users.length} usuarios en auth.users`);
+            const users = authData.users.map((user: any) => ({
+              id: user.id,
+              name: user.user_metadata?.nombre || user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuario',
+              email: user.email || '',
+              role: user.user_metadata?.rol || user.user_metadata?.role || 'Usuario',
+              permissions: {
+                trabajoModificado: (user.user_metadata?.trabajo_modificado === true || user.user_metadata?.trabajo_modificado === 'write') ? 'write' : 
+                                 (user.user_metadata?.trabajo_modificado === 'read') ? 'read' : 'none',
+                vigilanciaMedica: (user.user_metadata?.vigilancia_medica === true || user.user_metadata?.vigilancia_medica === 'write') ? 'write' : 
+                                 (user.user_metadata?.vigilancia_medica === 'read') ? 'read' : 'none',
+                seguimientoTrabajadores: (user.user_metadata?.seguimiento_trabajadores === true || user.user_metadata?.seguimiento_trabajadores === 'write') ? 'write' : 
+                                        (user.user_metadata?.seguimiento_trabajadores === 'read') ? 'read' : 'none',
+                seguridadHigiene: (user.user_metadata?.seguridad_higiene === true || user.user_metadata?.seguridad_higiene === 'write') ? 'write' : 
+                                 (user.user_metadata?.seguridad_higiene === 'read') ? 'read' : 'none',
+              },
+            }));
+
+            return {
+              success: true,
+              message: `${users.length} usuarios encontrados en Auth`,
+              users,
+            };
+          }
+        }
+        
+        // Si no hay usuarios en ningún lado, retornar array vacío
         return {
           success: true,
-          message: 'No se encontraron usuarios en la tabla profiles',
+          message: 'No se encontraron usuarios en profiles ni en auth.users',
           users: [],
         };
       }

@@ -23,7 +23,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
 
   // En otras páginas, renderizar con header y sidebar
   return (
-    <div className="flex min-h-screen bg-slate-50 flex-col">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-gray-900 flex-col transition-colors">
       {/* Header - Siempre visible en la parte superior */}
       <Header />
       
@@ -32,7 +32,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
         <Sidebar />
         
         {/* Contenido Principal - Columna Derecha (Flexible) */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 p-8">
+        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-gray-900 p-8 transition-colors">
           {children}
         </main>
       </div>

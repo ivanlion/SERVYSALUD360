@@ -20,17 +20,23 @@ import {
   Menu,
   X,
   Activity,
-  Users
+  Users,
+  Heart,
+  Upload,
+  Building2,
+  Gavel,
+  History
 } from 'lucide-react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { supabase } from '../lib/supabase';
+import { logger } from '../utils/logger';
 import { isSuperAdmin, isAdminUser, getEffectivePermission } from '../utils/auth-helpers';
 
 interface SidebarItem {
   label: string;
   icon: React.ReactNode;
   href: string;
-  view?: 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT' | 'WORK_MODIFIED_DASHBOARD';
+  view?: 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT' | 'WORK_MODIFIED_DASHBOARD' | 'VIGILANCIA_MEDICA' | 'UPLOAD_EMO' | 'GESTION_EMPRESAS' | 'LEY29733' | 'HISTORIAL_ANALISIS';
   hasSubItems?: boolean;
 }
 
@@ -49,21 +55,51 @@ const menuItems: SidebarItem[] = [
   },
   {
     label: 'Vigilancia Médica',
-    icon: <Stethoscope size={20} />,
+    icon: <Heart size={20} />,
+    href: '/',
+    view: 'VIGILANCIA_MEDICA' as const
+  },
+  {
+    label: 'Subir EMO',
+    icon: <Upload size={20} />,
+    href: '/',
+    view: 'UPLOAD_EMO' as const
+  },
+  {
+    label: 'Historial de Análisis',
+    icon: <History size={20} />,
+    href: '/',
+    view: 'HISTORIAL_ANALISIS' as const
+  },
+  {
+    label: 'Gestión de Empresas',
+    icon: <Building2 size={20} />,
+    href: '/',
+    view: 'GESTION_EMPRESAS' as const
+  },
+  {
+    label: 'Seguimiento de Trabajadores',
+    icon: <Users size={20} />,
     href: '/',
     view: 'DASHBOARD' as const
   },
   {
-    label: 'Seguridad',
+    label: 'Seguridad e Higiene',
     icon: <Shield size={20} />,
     href: '/',
     view: 'DASHBOARD' as const
   },
   {
+    label: 'Ley 29733',
+    icon: <Gavel size={20} />,
+    href: '/',
+    view: 'LEY29733' as const
+  },
+  {
     label: 'Administración',
     icon: <Settings size={20} />,
     href: '/',
-    view: 'DASHBOARD' as const,
+    view: 'ACCESS_MANAGEMENT' as const,
     hasSubItems: true
   }
 ];
@@ -162,7 +198,9 @@ export default function Sidebar() {
           }
         }
       } catch (error) {
-        console.error('Error al obtener rol y permisos del usuario:', error);
+        logger.error(error instanceof Error ? error : new Error('Error al obtener rol y permisos del usuario'), {
+          context: 'Sidebar'
+        });
       }
     };
 
@@ -203,18 +241,33 @@ export default function Sidebar() {
     
     // Navegación según el módulo
     if (item.label === 'Inicio') {
-      // Siempre ir al Dashboard principal (INICIO)
       router.push('/');
       setCurrentView('DASHBOARD');
     } else if (item.label === 'Trabajo Modificado') {
-      router.push('/');
+      logger.debug('[Sidebar] Navegando a Trabajo Modificado');
       setCurrentView('WORK_MODIFIED_DASHBOARD');
+      router.push('/');
     } else if (item.label === 'Vigilancia Médica') {
       router.push('/');
-      setCurrentView('DASHBOARD'); // Por ahora lleva al dashboard principal
-    } else if (item.label === 'Seguridad') {
+      setCurrentView('VIGILANCIA_MEDICA');
+    } else if (item.label === 'Subir EMO') {
+      router.push('/');
+      setCurrentView('UPLOAD_EMO');
+    } else if (item.label === 'Historial de Análisis') {
+      router.push('/');
+      setCurrentView('HISTORIAL_ANALISIS');
+    } else if (item.label === 'Gestión de Empresas') {
+      router.push('/');
+      setCurrentView('GESTION_EMPRESAS');
+    } else if (item.label === 'Seguimiento de Trabajadores') {
       router.push('/');
       setCurrentView('DASHBOARD'); // Por ahora lleva al dashboard principal
+    } else if (item.label === 'Seguridad e Higiene') {
+      router.push('/');
+      setCurrentView('DASHBOARD'); // Por ahora lleva al dashboard principal
+    } else if (item.label === 'Ley 29733') {
+      router.push('/');
+      setCurrentView('LEY29733');
     } else if (item.label === 'Administración') {
       // Si es administrador, puede acceder directamente
       if (isAdmin) {
@@ -249,7 +302,7 @@ export default function Sidebar() {
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-40
-          bg-white border-r border-blue-100
+          bg-white dark:bg-gray-900 border-r border-blue-100 dark:border-gray-800
           transform transition-all duration-300 ease-in-out
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           ${isSidebarCollapsed ? 'w-16' : 'w-64'}
@@ -265,18 +318,19 @@ export default function Sidebar() {
               }
 
               // Lógica mejorada para determinar si un item está activo
-              // Solo "Inicio" debe estar activo cuando currentView === 'DASHBOARD'
               const isInicioActive = item.label === 'Inicio' && currentView === 'DASHBOARD';
-              
-              // Solo "Trabajo Modificado" debe estar activo cuando currentView === 'WORK_MODIFIED_DASHBOARD'
               const isTrabajoModificadoActive = item.label === 'Trabajo Modificado' && currentView === 'WORK_MODIFIED_DASHBOARD';
-              
-              // Para Administración
+              const isVigilanciaMedicaActive = item.label === 'Vigilancia Médica' && currentView === 'VIGILANCIA_MEDICA';
+              const isUploadEMOActive = item.label === 'Subir EMO' && currentView === 'UPLOAD_EMO';
+              const isHistorialAnalisisActive = item.label === 'Historial de Análisis' && currentView === 'HISTORIAL_ANALISIS';
+              const isGestionEmpresasActive = item.label === 'Gestión de Empresas' && currentView === 'GESTION_EMPRESAS';
+              const isLey29733Active = item.label === 'Ley 29733' && currentView === 'LEY29733';
               const isAdminActive = item.label === 'Administración' && 
                 (currentView === 'ACCESS_MANAGEMENT' || pathname === '/dashboard/admin');
               
               // Determinar si el item está activo (solo uno puede estar activo a la vez)
-              const isActive = isInicioActive || isTrabajoModificadoActive || isAdminActive;
+              const isActive = isInicioActive || isTrabajoModificadoActive || isVigilanciaMedicaActive || 
+                isUploadEMOActive || isHistorialAnalisisActive || isGestionEmpresasActive || isLey29733Active || isAdminActive;
               
               return (
                 <React.Fragment key={item.label}>
@@ -297,19 +351,20 @@ export default function Sidebar() {
                     className={`
                       w-full flex items-center rounded-lg text-left transition-all duration-200
                       ${isSidebarCollapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3'}
+                      min-h-[44px] sm:min-h-0
                       ${
                         isActive
-                          ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
-                          : 'text-gray-600 hover:bg-gray-50'
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-l-4 border-blue-600 dark:border-blue-500 font-semibold'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }
                     `}
                     title={isSidebarCollapsed ? item.label : undefined}
                   >
-                    <span className={isActive ? 'text-blue-600' : 'text-gray-500'}>
+                    <span className={isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}>
                       {item.icon}
                     </span>
                     {!isSidebarCollapsed && (
-                      <span className={`text-sm ${isActive ? 'text-blue-700' : 'text-gray-600'}`}>
+                      <span className={`text-sm ${isActive ? 'text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-400'}`}>
                         {item.label}
                       </span>
                     )}
@@ -335,12 +390,12 @@ export default function Sidebar() {
                               transition-all duration-200
                               ${
                                 isSubActive
-                                  ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 font-semibold'
-                                  : 'text-gray-600 hover:bg-gray-50'
+                                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-l-4 border-blue-600 dark:border-blue-500 font-semibold'
+                                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
                               }
                             `}
                           >
-                            <span className={isSubActive ? 'text-blue-600' : 'text-gray-500'}>
+                            <span className={isSubActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}>
                               {subItem.icon}
                             </span>
                             <span className={`text-sm ${isSubActive ? 'text-blue-700' : 'text-gray-600'}`}>

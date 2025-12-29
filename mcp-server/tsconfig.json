@@ -9,7 +9,7 @@
     
     /* Emit */
     "outDir": "./dist",
-    "rootDir": "./src",
+    // "rootDir": "./src", // Comentado para permitir imports desde ../lib
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -45,4 +45,3 @@
     "**/*.spec.ts"
   ]
 }
-

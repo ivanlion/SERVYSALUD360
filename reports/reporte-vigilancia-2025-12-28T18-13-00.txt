@@ -1,0 +1,60 @@
+REPORTE DE VIGILANCIA MÉDICA OCUPACIONAL
+Empresa: Cliente
+Fecha: 28 de diciembre de 2025
+Elaborado por: SERVYSALUD LF EIRL
+
+═══════════════════════════════════════════
+
+📊 RESUMEN EJECUTIVO
+
+Total trabajadores evaluados: 6
+Aptitud laboral:
+├─ APTOS: 5 (83%)
+├─ APTOS CON RESTRICCIONES: 5 (83%)
+└─ NO APTOS: 0 (0%)
+
+═══════════════════════════════════════════
+
+⚠️  HALLAZGOS PRINCIPALES
+
+Restricción común identificada:
+"Uso permanente de lentes correctores"
+Prevalencia: 6/6 trabajadores (100%)
+
+Otros hallazgos detectados:
+• Bradicardia: 4 caso(s)
+• Obesidad: 1 caso(s)
+
+═══════════════════════════════════════════
+
+📋 RECOMENDACIONES INMEDIATAS
+
+1. PROGRAMA DE SALUD VISUAL
+   • Evaluaciones oftalmológicas anuales
+   • Convenio con óptica especializada
+   • Budget: ~S/. 300-500 por trabajador/año
+
+2. EQUIPOS DE PROTECCIÓN PERSONAL
+   • Lentes de seguridad graduados
+   • Certificados según norma ANSI Z87.1
+   • Reposición cada 12-18 meses
+
+3. CAPACITACIÓN
+   • Cuidado visual en el trabajo
+   • Uso correcto de EPP visual
+   • Señales de deterioro visual
+
+═══════════════════════════════════════════
+
+✅ CUMPLIMIENTO NORMATIVO
+
+☑ Ley 29783 - SST
+☑ D.S. 005-2012-TR
+☑ RM 312-2011-MINSA
+☑ Ley 29733 - Protección Datos
+
+═══════════════════════════════════════════
+
+Elaborado con tecnología IA
+SERVYSALUD LF EIRL
+RUC: [tu RUC]

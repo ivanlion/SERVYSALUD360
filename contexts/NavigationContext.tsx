@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT' | 'WORK_MODIFIED_DASHBOARD';
+type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT' | 'WORK_MODIFIED_DASHBOARD' | 'VIGILANCIA_MEDICA' | 'LEY29733' | 'GESTION_EMPRESAS' | 'UPLOAD_EMO' | 'HISTORIAL_ANALISIS';
 
 interface NavigationContextType {
   currentView: View;

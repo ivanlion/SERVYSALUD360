@@ -21,6 +21,10 @@ export const trabajadoresTools: Tool[] = [
           type: 'number',
           description: 'Número máximo de trabajadores a retornar',
         },
+        empresa_id: {
+          type: 'string',
+          description: 'ID de la empresa para filtrar trabajadores (opcional, para multi-tenancy)',
+        },
       },
     },
   },
@@ -50,13 +54,19 @@ export async function handleTrabajadoresTool(
 ): Promise<any> {
   switch (toolName) {
     case 'trabajadores_listar': {
-      const { limit = 100 } = args;
+      const { limit = 100, empresa_id } = args;
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('registros_trabajadores')
         .select('*')
-        .limit(limit)
-        .order('fecha_registro', { ascending: false });
+        .limit(limit);
+      
+      // Filtrar por empresa si se proporciona (multi-tenancy)
+      if (empresa_id) {
+        query = query.eq('empresa_id', empresa_id);
+      }
+      
+      const { data, error } = await query.order('fecha_registro', { ascending: false });
       
       if (error) {
         return {

@@ -10,9 +10,15 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { CaseData, INITIAL_CASE, EventType } from '../types';
+import * as XLSX from 'xlsx';
+import { CaseData } from '../types';
 import { supabase } from '../lib/supabase';
-import { Edit2, Search, Building2, Users, Calendar, Clock, Activity, AlertCircle, Loader2, Trash2, Plus } from 'lucide-react';
+import { useCompany } from '../contexts/CompanyContext';
+import { useNotifications } from '../contexts/NotificationContext';
+import { useWorkModifiedCases } from '../hooks/useWorkModifiedCases';
+import { useQueryClient } from '@tanstack/react-query';
+import { logger } from '../utils/logger';
+import { Edit2, Search, Building2, Users, Calendar, Clock, Activity, AlertCircle, Loader2, Trash2, Plus, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
 // Hook personalizado para debounce
 function useDebounce<T>(value: T, delay: number): T {
@@ -58,82 +64,32 @@ interface CaseDataWithSupabaseId extends CaseData {
 }
 
 export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModifiedDashboardProps) {
+  
+  const { empresaActiva } = useCompany();
+  const { showSuccess, showError } = useNotifications();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [cases, setCases] = useState<CaseDataWithSupabaseId[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // Estado de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 100;
+  
+  // Usar React Query para cachear casos
+  const { data: casesData, isLoading, error: queryError } = useWorkModifiedCases(currentPage, PAGE_SIZE);
+  const cases = casesData?.cases || [];
+  const totalCount = casesData?.totalCount || 0;
+  const error = queryError ? (queryError.message || 'Error al cargar los datos') : null;
   
   // Debounce del término de búsqueda (300ms de delay)
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  /**
-   * Mapea los datos de Supabase al formato CaseData de la aplicación
-   */
-  const mapSupabaseToCaseData = (record: SupabaseRecord, index: number): CaseDataWithSupabaseId => {
-    return {
-      ...INITIAL_CASE,
-      id: `PO-0006-${String(index + 1).padStart(3, '0')}`,
-      supabaseId: record.id,
-      status: 'ACTIVO',
-      createdAt: record.fecha_registro || new Date().toISOString(),
-      fecha: record.fecha_registro || '',
-      trabajadorNombre: record.apellidos_nombre || '',
-      dni: record.dni_ce_pas || '',
-      sexo: (record.sexo as 'Masculino' | 'Femenino' | '') || '',
-      jornadaLaboral: record.jornada_laboral || '',
-      puesto: record.puesto_trabajo || '',
-      telfContacto: record.telefono_trabajador || '',
-      empresa: record.empresa || '',
-      gerencia: record.gerencia || '',
-      supervisor: record.supervisor_responsable || '',
-      supervisorTelf: record.telf_contacto_supervisor || '',
-      tipoEvento: EventType.ACCIDENTE_TRABAJO,
-      assessment: { ...INITIAL_CASE.assessment },
-      assessment2: { ...INITIAL_CASE.assessment },
-      tareasRealizar: '',
-      areaLugar: '',
-      tareasPrincipales: '',
-      comentariosSupervisor: '',
-      reevaluaciones: []
-    };
-  };
-
-  /**
-   * Carga los datos de casos desde Supabase
-   */
-  useEffect(() => {
-    const loadCases = async () => {
-      setIsLoading(true);
-      setError(null);
-
-        try {
-        // Optimización: Solo seleccionar campos necesarios para la tabla
-        const { data, error: supabaseError } = await supabase
-          .from('registros_trabajadores')
-          .select('id, fecha_registro, apellidos_nombre, dni_ce_pas, telefono_trabajador, sexo, jornada_laboral, puesto_trabajo, empresa, gerencia, supervisor_responsable, telf_contacto_supervisor')
-          .order('fecha_registro', { ascending: false });
-
-        if (supabaseError) {
-          throw supabaseError;
-        }
-
-        if (data) {
-          const mappedCases = data.map((record: any, index: number) =>
-            mapSupabaseToCaseData(record as SupabaseRecord, index)
-          );
-          setCases(mappedCases);
-        }
-      } catch (err: any) {
-        console.error('Error al cargar datos de Supabase:', err);
-        setError(err.message || 'Error al cargar los datos');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadCases();
-  }, []);
+  // Invalidar caché cuando se elimina un caso
+  const invalidateCasesCache = useCallback(() => {
+    queryClient.invalidateQueries({ 
+      queryKey: ['work-modified-cases', empresaActiva?.id || 'all'] 
+    });
+  }, [queryClient, empresaActiva?.id]);
 
   // Filter Logic: Search by Name, DNI, or Company (memoizado para mejor rendimiento)
   const filteredCases = useMemo(() => {
@@ -207,6 +163,143 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
   };
 
   /**
+   * Exporta los casos filtrados a Excel con dos hojas:
+   * 1. Casos de Trabajo Modificado
+   * 2. Estadísticas
+   */
+  const exportToExcel = useCallback(() => {
+    try {
+      // Validar que hay datos para exportar
+      if (filteredCases.length === 0) {
+        showError('No hay casos para exportar. Asegúrate de tener datos visibles.');
+        return;
+      }
+
+      logger.debug('[WorkModifiedDashboard] Iniciando exportación a Excel...', {
+        totalCases: filteredCases.length
+      });
+
+      // Preparar datos de casos para Excel
+      const casosData = filteredCases.map(caso => {
+        const { initial, added, total } = getCaseDaysInfo(caso);
+        const endDateISO = calculateEndDate(caso.assessment?.indicacionInicio || '', total);
+        const endDateFormatted = endDateISO !== '-' ? formatDate(endDateISO) : '';
+        const startDateFormatted = formatDate(caso.assessment?.indicacionInicio || '');
+        
+        const primaryDiagnosis = caso.assessment?.diagnosticos?.[0]?.descripcion || 'Sin diagnóstico';
+        const primaryCie10 = caso.assessment?.diagnosticos?.[0]?.cie10 || '';
+        const diagnosticoCompleto = primaryCie10 
+          ? `${primaryDiagnosis} (${primaryCie10})`
+          : primaryDiagnosis;
+
+        // Determinar tipo de modificación basado en restricciones
+        // Las restricciones pueden venir de diferentes fuentes, usar tipoEvento como base
+        const tipoModificacion = caso.tipoEvento || 'No especificado';
+
+        // Observaciones combinadas
+        const observaciones = [
+          caso.comentariosSupervisor,
+          caso.assessment?.medicoNombre ? `Médico: ${caso.assessment.medicoNombre}` : '',
+          caso.assessment?.alertaFarmacologica ? `Alerta: ${caso.assessment.alertaFarmacologica}` : '',
+        ].filter(Boolean).join('; ');
+
+        return {
+          'Fecha de Registro': formatDate(caso.fecha) || '-',
+          'DNI': caso.dni || '-',
+          'Trabajador': caso.trabajadorNombre || '-',
+          'Empresa': caso.empresa || '-',
+          'Puesto de Trabajo': caso.puesto || '-',
+          'Diagnóstico': diagnosticoCompleto,
+          'Tipo de Modificación': tipoModificacion,
+          'Fecha de Inicio': startDateFormatted || '-',
+          'Fecha de Fin': endDateFormatted || '-',
+          'Días Iniciales': initial,
+          'Días Adicionales': added,
+          'Total Días': total,
+          'Estado': caso.status || '-',
+          'Observaciones': observaciones || '-',
+        };
+      });
+
+      // Preparar datos de estadísticas
+      const statsData = [
+        { 'Métrica': 'Total de Casos', 'Valor': totalCases },
+        { 'Métrica': 'Casos Activos', 'Valor': activeCases },
+        { 'Métrica': 'Casos Finalizados', 'Valor': closedCases },
+        { 'Métrica': 'Tasa de Finalización (%)', 'Valor': totalCases > 0 ? ((closedCases / totalCases) * 100).toFixed(2) : '0.00' },
+        { 'Métrica': 'Días Acumulados', 'Valor': globalAccumulatedDays },
+        { 'Métrica': 'Promedio de Días por Caso', 'Valor': totalCases > 0 ? (globalAccumulatedDays / totalCases).toFixed(2) : '0.00' },
+      ];
+
+      // Agregar distribución por empresa
+      const empresasMap = new Map<string, number>();
+      filteredCases.forEach(caso => {
+        const empresa = caso.empresa || 'Sin empresa';
+        empresasMap.set(empresa, (empresasMap.get(empresa) || 0) + 1);
+      });
+      
+      statsData.push({ 'Métrica': '', 'Valor': '' }); // Separador
+      statsData.push({ 'Métrica': 'Distribución por Empresa', 'Valor': '' });
+      Array.from(empresasMap.entries()).forEach(([empresa, count]) => {
+        statsData.push({ 'Métrica': empresa, 'Valor': count });
+      });
+
+      // Agregar distribución por tipo de evento
+      const tiposMap = new Map<string, number>();
+      filteredCases.forEach(caso => {
+        const tipo = caso.tipoEvento || 'Sin tipo';
+        tiposMap.set(tipo, (tiposMap.get(tipo) || 0) + 1);
+      });
+      
+      statsData.push({ 'Métrica': '', 'Valor': '' }); // Separador
+      statsData.push({ 'Métrica': 'Distribución por Tipo de Evento', 'Valor': '' });
+      Array.from(tiposMap.entries()).forEach(([tipo, count]) => {
+        statsData.push({ 'Métrica': tipo, 'Valor': count });
+      });
+
+      // Crear workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Agregar hoja de casos
+      const wsCasos = XLSX.utils.json_to_sheet(casosData);
+      XLSX.utils.book_append_sheet(wb, wsCasos, 'Casos de Trabajo Modificado');
+      
+      // Agregar hoja de estadísticas
+      const wsStats = XLSX.utils.json_to_sheet(statsData);
+      XLSX.utils.book_append_sheet(wb, wsStats, 'Estadísticas');
+      
+      // Ajustar ancho de columnas para hoja de casos
+      const maxWidth = 30;
+      const columnWidths = Object.keys(casosData[0] || {}).map(() => ({ wch: maxWidth }));
+      wsCasos['!cols'] = columnWidths;
+      
+      // Ajustar ancho de columnas para hoja de estadísticas
+      wsStats['!cols'] = [{ wch: 35 }, { wch: 20 }];
+      
+      // Generar nombre de archivo con marca de tiempo
+      const timestamp = new Date().toISOString().split('T')[0];
+      const fileName = `casos_trabajo_modificado_${timestamp}.xlsx`;
+      
+      // Generar archivo
+      XLSX.writeFile(wb, fileName);
+      
+      // Mostrar notificación de éxito
+      showSuccess(`Archivo Excel generado exitosamente: ${fileName}`);
+      
+      logger.debug('[WorkModifiedDashboard] Exportación completada exitosamente', {
+        fileName,
+        totalCases: filteredCases.length
+      });
+    } catch (err: any) {
+      logger.error(err instanceof Error ? err : new Error('Error al exportar a Excel'), {
+        context: 'exportToExcel',
+        error: err.message
+      });
+      showError(`Error al exportar a Excel: ${err.message || 'Error desconocido'}`);
+    }
+  }, [filteredCases, totalCases, activeCases, closedCases, globalAccumulatedDays, showSuccess, showError]);
+
+  /**
    * Maneja la eliminación de un caso con confirmación (memoizado)
    */
   const handleDelete = useCallback(async (caseData: CaseDataWithSupabaseId) => {
@@ -236,12 +329,14 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
         throw deleteError;
       }
 
-      setCases(prevCases => prevCases.filter(c => c.id !== caseData.id));
-      alert(`Registro de ${caseData.trabajadorNombre} eliminado exitosamente.`);
+      showSuccess(`Registro de ${caseData.trabajadorNombre} eliminado exitosamente.`);
+      
+      // Invalidar caché para recargar datos
+      invalidateCasesCache();
 
     } catch (err: any) {
       console.error('❌ Error al eliminar registro:', err);
-      alert(`Error al eliminar el registro: ${err.message || 'Error desconocido'}`);
+      showError(`Error al eliminar el registro: ${err.message || 'Error desconocido'}`);
     } finally {
       setDeletingId(null);
     }
@@ -290,34 +385,54 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Encabezado - Mismo estilo que Administración */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Gestión de Trabajo Modificado
           </h1>
-          <p className="text-gray-500">
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
             Monitoreo y seguimiento de restricciones laborales.
           </p>
         </div>
-        {/* Botón Nuevo Caso */}
-        <button
-          onClick={onCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
-        >
-          <Plus size={18} />
-          <span>Nuevo Caso</span>
-        </button>
+        {/* Botones de Acción */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Botón Exportar a Excel */}
+          <button
+            onClick={exportToExcel}
+            disabled={filteredCases.length === 0}
+            className={`
+              flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition-colors shadow-sm min-h-[44px] sm:min-h-0
+              ${filteredCases.length === 0
+                ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                : 'bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600'
+              }
+            `}
+            title={filteredCases.length === 0 ? 'No hay casos para exportar' : 'Exportar casos visibles a Excel'}
+          >
+            <Download size={18} />
+            <span className="hidden sm:inline">Exportar a Excel</span>
+            <span className="sm:hidden">Exportar</span>
+          </button>
+          {/* Botón Nuevo Caso */}
+          <button
+            onClick={onCreate}
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-indigo-600 dark:bg-indigo-500 text-white rounded-full text-sm font-medium hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors shadow-sm min-h-[44px] sm:min-h-0"
+          >
+            <Plus size={18} />
+            <span>Nuevo Caso</span>
+          </button>
+        </div>
       </div>
 
       {/* KPIs - Tarjetas sutiles en fila superior */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center gap-4">
-          <div className="bg-blue-50 p-3 rounded-lg">
-            <Users className="text-blue-600" size={24} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 sm:p-6 flex items-center gap-3 sm:gap-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-2 sm:p-3 rounded-lg shrink-0">
+            <Users className="text-blue-600 dark:text-blue-400 w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Total Casos</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{totalCases}</p>
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Total Casos</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalCases}</p>
           </div>
         </div>
 
@@ -352,58 +467,145 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
         </div>
       </div>
 
-      {/* Contenedor Principal Unificado - Mismo estilo que Administración */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        {/* Barra de Herramientas (Toolbar) - Dentro del contenedor */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-4">
-            {/* Buscador estilo píldora */}
-            <div className="flex-1 relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
+        {/* Contenedor Principal Unificado - Mismo estilo que Administración */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          {/* Barra de Herramientas (Toolbar) - Dentro del contenedor */}
+          <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3 sm:gap-4">
+              {/* Buscador estilo píldora */}
+              <div className="flex-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-2.5 text-base sm:text-sm border border-gray-300 rounded-full bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white transition-all"
+                  placeholder="Buscar por Trabajador, DNI o Empresa..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-full bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white transition-all"
-                placeholder="Buscar por Trabajador, DNI o Empresa..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center px-2"
+                  aria-label="Limpiar búsqueda"
+                >
+                  Limpiar
+                </button>
+              )}
             </div>
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                aria-label="Limpiar búsqueda"
-              >
-                Limpiar
-              </button>
-            )}
           </div>
-        </div>
 
-        {/* Tabla de Datos - Mismo estilo que Administración */}
+        {/* Tabla de Datos - Desktop / Cards en Móvil */}
         {filteredCases.length === 0 ? (
           <div className="flex items-center justify-center py-12">
-            <div className="text-center">
+            <div className="text-center px-4">
               {searchTerm ? (
                 <>
-                  <p className="text-gray-500 mb-2">No se encontraron casos que coincidan con la búsqueda.</p>
+                  <p className="text-sm sm:text-base text-gray-500 mb-2">No se encontraron casos que coincidan con la búsqueda.</p>
                   <button
                     onClick={() => setSearchTerm('')}
-                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium min-h-[44px] px-4 py-2"
                   >
                     Limpiar filtros
                   </button>
                 </>
               ) : (
-                <p className="text-gray-500">No hay registros en la base de datos.</p>
+                <p className="text-sm sm:text-base text-gray-500">No hay registros en la base de datos.</p>
               )}
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <>
+            {/* Vista de Cards en Móvil */}
+            <div className="md:hidden space-y-4 px-2">
+              {filteredCases.map((c) => {
+                const { initial, added, total } = getCaseDaysInfo(c);
+                const endDateISO = calculateEndDate(c.assessment?.indicacionInicio || '', total);
+                const endDateFormatted = formatDate(endDateISO);
+                const startDateFormatted = formatDate(c.assessment?.indicacionInicio || '');
+                const primaryDiagnosis = c.assessment?.diagnosticos?.[0]?.descripcion || 'Sin diagnóstico';
+                const primaryCie10 = c.assessment?.diagnosticos?.[0]?.cie10 || '';
+
+                return (
+                  <div key={c.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-base truncate">{c.trabajadorNombre || '-'}</p>
+                        <p className="text-sm text-gray-500 mt-1">DNI: {c.dni || '-'}</p>
+                        <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
+                          <Building2 size={12} />
+                          <span className="truncate">{c.empresa || 'Empresa no registrada'}</span>
+                        </div>
+                      </div>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0 ml-2 ${
+                        c.status === 'ACTIVO'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {c.status}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2 mb-4">
+                      <div>
+                        <p className="text-xs font-medium text-gray-500">Diagnóstico</p>
+                        <p className="text-sm text-gray-900">{primaryDiagnosis}</p>
+                        {primaryCie10 && (
+                          <p className="text-xs text-gray-500">({primaryCie10})</p>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium text-gray-500">Inicio</p>
+                          <p className="text-sm text-gray-900">{startDateFormatted !== '-' ? startDateFormatted : '-'}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-medium text-gray-500">Días</p>
+                          <p className="text-lg font-bold text-gray-900">{total}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-medium text-gray-500">Término</p>
+                          <p className="text-sm text-gray-900">{endDateFormatted !== '-' ? endDateFormatted : '-'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 pt-3 border-t border-gray-100">
+                      <button
+                        onClick={() => onEdit(c)}
+                        className="flex-1 px-3 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors min-h-[44px] flex items-center justify-center gap-1.5"
+                        disabled={deletingId === c.id}
+                      >
+                        <Edit2 size={16} />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        onClick={() => handleDelete(c)}
+                        disabled={deletingId === c.id}
+                        className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] flex items-center justify-center gap-1.5 ${
+                          deletingId === c.id
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700'
+                        }`}
+                      >
+                        {deletingId === c.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Vista de Tabla en Desktop */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
               {/* Cabecera de Tabla - Mismo estilo que Administración */}
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -563,6 +765,89 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
                 })}
               </tbody>
             </table>
+            </div>
+          </>
+        )}
+
+        {/* Paginación */}
+        {!isLoading && filteredCases.length > 0 && totalCount > PAGE_SIZE && (
+          <div className="mt-6 flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-lg">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                disabled={currentPage * PAGE_SIZE >= totalCount}
+                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Siguiente
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Mostrando <span className="font-medium">{(currentPage - 1) * PAGE_SIZE + 1}</span> a{' '}
+                  <span className="font-medium">{Math.min(currentPage * PAGE_SIZE, totalCount)}</span> de{' '}
+                  <span className="font-medium">{totalCount}</span> resultados
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Anterior</span>
+                    <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                  
+                  {/* Números de página */}
+                  {Array.from({ length: Math.min(5, Math.ceil(totalCount / PAGE_SIZE)) }, (_, i) => {
+                    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+                    let pageNum: number;
+                    
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                          currentPage === pageNum
+                            ? 'z-10 bg-indigo-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                            : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                    disabled={currentPage * PAGE_SIZE >= totalCount}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Siguiente</span>
+                    <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                </nav>
+              </div>
+            </div>
           </div>
         )}
       </div>

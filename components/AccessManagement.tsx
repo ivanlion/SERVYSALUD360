@@ -16,8 +16,15 @@ import { updatePermissionLevel } from '../app/actions/update-permission-level';
 import { updateUser, deleteUser } from '../app/actions/admin-actions';
 import { supabase } from '../lib/supabase';
 import { isSuperAdmin, isAdminUser } from '../utils/auth-helpers';
+import { logger } from '../utils/logger';
+import { useNotifications } from '../contexts/NotificationContext';
 
 export type PermissionLevel = 'none' | 'read' | 'write';
+
+interface EmpresaInfo {
+  id: string;
+  nombre: string;
+}
 
 interface User {
   id: string;
@@ -30,6 +37,7 @@ interface User {
     seguimientoTrabajadores: PermissionLevel;
     seguridadHigiene: PermissionLevel;
   };
+  empresas?: EmpresaInfo[]; // Empresas asociadas al usuario
 }
 
 // Función para obtener inicial del nombre o email
@@ -67,13 +75,13 @@ const getAvatarColor = (name: string | null, email: string): string => {
 };
 
 export default function AccessManagement() {
+  const { showSuccess, showError, showWarning } = useNotifications();
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [updatingPermissions, setUpdatingPermissions] = useState<Set<string>>(new Set());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
@@ -88,6 +96,10 @@ export default function AccessManagement() {
   // useTransition para envolver actualizaciones
   const [isPending, startTransition] = useTransition();
 
+  // Verificación final antes de renderizar (por si el estado no se actualizó correctamente)
+  // IMPORTANTE: Este hook debe estar aquí, antes de cualquier return condicional
+  const [finalAdminCheck, setFinalAdminCheck] = useState<boolean | null>(null);
+
   // Estados del formulario
   const [formData, setFormData] = useState({
     nombre: '',
@@ -96,6 +108,97 @@ export default function AccessManagement() {
     rol: 'Usuario', // Valor por defecto
   });
 
+  // Función para cargar empresas de un usuario
+  const loadUserEmpresas = async (userId: string): Promise<EmpresaInfo[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('user_empresas')
+        .select(`
+          empresa_id,
+          empresas (
+            id,
+            nombre
+          )
+        `, { count: 'exact' })
+        .eq('user_id', userId)
+        .limit(200);
+
+      if (error) {
+        logger.error(new Error(`Error al cargar empresas para usuario ${userId}`), {
+          context: 'loadUserEmpresas',
+          userId,
+          error: error.message
+        });
+        return [];
+      }
+
+      if (!data) return [];
+
+      // Extraer información de empresas del join
+      const empresas: EmpresaInfo[] = data
+        .map((item: any) => {
+          if (item.empresas) {
+            return {
+              id: item.empresas.id,
+              nombre: item.empresas.nombre,
+            };
+          }
+          return null;
+        })
+        .filter((emp: EmpresaInfo | null): emp is EmpresaInfo => emp !== null);
+
+      return empresas;
+    } catch (error: any) {
+      logger.error(error instanceof Error ? error : new Error(`Error inesperado para usuario ${userId}`), {
+        context: 'loadUserEmpresas',
+        userId
+      });
+      return [];
+    }
+  };
+
+  // Función para cargar empresas de todos los usuarios
+  const loadAllUsersEmpresas = async (usersList: User[]): Promise<User[]> => {
+    try {
+      logger.debug('[loadAllUsersEmpresas] Cargando empresas para', usersList.length, 'usuarios...');
+      
+      // Cargar empresas en paralelo para todos los usuarios
+      const usersWithEmpresas = await Promise.all(
+        usersList.map(async (user) => {
+          const empresas = await loadUserEmpresas(user.id);
+          return {
+            ...user,
+            empresas,
+          };
+        })
+      );
+
+      logger.debug('[loadAllUsersEmpresas] Empresas cargadas para todos los usuarios');
+      return usersWithEmpresas;
+    } catch (error: any) {
+      logger.error(error instanceof Error ? error : new Error('Error al cargar empresas'), {
+        context: 'loadAllUsersEmpresas'
+      });
+      return usersList; // Retornar usuarios sin empresas si falla
+    }
+  };
+
+  // Función helper para normalizar usuarios y cargar empresas
+  const normalizeUsersWithEmpresas = async (usersArray: any[]): Promise<User[]> => {
+    const normalizedUsers: User[] = usersArray.map((user: any) => ({
+      ...user,
+      permissions: {
+        trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+        vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+        seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+        seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+      },
+    }));
+    
+    // Cargar empresas para todos los usuarios
+    return await loadAllUsersEmpresas(normalizedUsers);
+  };
+
   // Optimización: Verificar admin y cargar usuarios en paralelo para mejor rendimiento
   useEffect(() => {
     const initializeData = async () => {
@@ -103,10 +206,50 @@ export default function AccessManagement() {
       setIsLoadingUsers(true);
       
       try {
-        // Obtener usuario actual (rápido)
-        const { data: { user } } = await supabase.auth.getUser();
+        // Intentar obtener usuario de múltiples formas
+        let user: any = null;
+        let userEmail: string | null = null;
+        
+        // Método 1: getSession (más rápido)
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            user = session.user;
+            userEmail = session.user.email || null;
+            logger.debug('[AccessManagement] Usuario obtenido de getSession:', { id: user.id, email: userEmail });
+          }
+        } catch (sessionError: any) {
+          logger.warn('[AccessManagement] Error en getSession:', sessionError.message);
+        }
+        
+        // Método 2: getUser (fallback)
+        if (!user) {
+          try {
+            const { data: { user: userData }, error: userError } = await supabase.auth.getUser();
+            if (userData) {
+              user = userData;
+              userEmail = userData.email || null;
+              logger.debug('[AccessManagement] Usuario obtenido de getUser:', { id: user.id, email: userEmail });
+            } else if (userError) {
+              logger.error(new Error('Error en getUser'), {
+                context: 'AccessManagement',
+                error: userError.message
+              });
+            }
+          } catch (getUserError: any) {
+            logger.error(getUserError instanceof Error ? getUserError : new Error('Error al obtener usuario'), {
+              context: 'AccessManagement'
+            });
+          }
+        }
+        
+        logger.debug('[AccessManagement] Verificando acceso:', {
+          user: user ? { id: user.id, email: userEmail } : null,
+          userEmail: userEmail,
+        });
         
         if (!user) {
+          logger.error(new Error('No se encontró usuario autenticado'), { context: 'AccessManagement' });
           setIsAdmin(false);
           setIsCheckingAdmin(false);
           setIsLoadingUsers(false);
@@ -115,31 +258,98 @@ export default function AccessManagement() {
 
         setCurrentUserId(user.id);
         
-        // Verificación rápida de Super Admin (sin consulta a BD)
-        if (isSuperAdmin(user.email)) {
+        // VERIFICACIÓN FORZADA DE SUPER ADMIN
+        // Verificar de múltiples formas para asegurar acceso
+        const emailLower = (userEmail || '').toLowerCase().trim();
+        const isSuperAdminUser = 
+          isSuperAdmin(userEmail) || 
+          emailLower === 'lionfonseca@gmail.com' ||
+          userEmail?.toLowerCase().includes('lionfonseca@gmail.com') ||
+          emailLower.includes('lionfonseca');
+        
+        logger.debug('[AccessManagement] Verificación Super Admin:', {
+          email: userEmail,
+          emailLower: emailLower,
+          isSuperAdmin: isSuperAdminUser,
+          isSuperAdminFunction: isSuperAdmin(userEmail),
+          directCheck: emailLower === 'lionfonseca@gmail.com',
+          includesCheck: emailLower.includes('lionfonseca'),
+          SUPER_ADMIN_EMAIL: 'lionfonseca@gmail.com',
+        });
+        
+        // SI ES SUPER ADMIN, CONCEDER ACCESO INMEDIATAMENTE
+        if (isSuperAdminUser) {
+          logger.debug('[AccessManagement] ✅✅✅ SUPER ADMIN DETECTADO - ACCESO GARANTIZADO');
           setIsAdmin(true);
           setIsCheckingAdmin(false);
           
           // Cargar usuarios directamente
+          logger.debug('🔍 [SuperAdmin] Iniciando carga de usuarios...');
           const result = await getUsers();
-          console.log('🔍 [SuperAdmin] Resultado de getUsers:', result);
+          logger.debug('🔍 [SuperAdmin] Resultado completo de getUsers:', {
+            success: result.success,
+            message: result.message,
+            usersCount: result.users?.length || 0,
+          });
+          
           if (result.success) {
             // Procesar usuarios (incluso si el array está vacío o es undefined)
             const usersArray = result.users || [];
-            const normalizedUsers: User[] = usersArray.map((user: any) => ({
-              ...user,
-              permissions: {
-                trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
-                vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
-                seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
-                seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
-              },
-            }));
-            console.log('✅ [SuperAdmin] Usuarios normalizados:', normalizedUsers.length, normalizedUsers);
-            setUsers(normalizedUsers);
-            setLocalUsers(normalizedUsers);
+            logger.debug('📊 [SuperAdmin] Usuarios recibidos:', usersArray.length, 'usuarios');
+            
+            if (usersArray.length === 0) {
+              logger.warn('⚠️ [SuperAdmin] No se encontraron usuarios. Verificando auth.users directamente...');
+              // Intentar obtener usuarios directamente desde auth.users como fallback
+              try {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                if (currentUser) {
+                  logger.debug('✅ [SuperAdmin] Usuario actual encontrado:', currentUser.email);
+                  // Al menos mostrar el usuario actual
+                  const currentUserNormalized: User = {
+                    id: currentUser.id,
+                    name: currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || null,
+                    email: currentUser.email || '',
+                    role: currentUser.user_metadata?.role || currentUser.user_metadata?.rol || 'Usuario',
+                    permissions: {
+                      trabajoModificado: 'none',
+                      vigilanciaMedica: 'none',
+                      seguimientoTrabajadores: 'none',
+                      seguridadHigiene: 'none',
+                    },
+                  };
+                  const usersWithEmpresas = await loadAllUsersEmpresas([currentUserNormalized]);
+                  setUsers(usersWithEmpresas);
+                  setLocalUsers(usersWithEmpresas);
+                }
+              } catch (fallbackError: any) {
+                logger.error(fallbackError instanceof Error ? fallbackError : new Error('Error en fallback'), {
+                  context: 'AccessManagement',
+                  error: fallbackError.message
+                });
+              }
+            } else {
+              const normalizedUsers: User[] = usersArray.map((user: any) => ({
+                ...user,
+                permissions: {
+                  trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
+                  vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
+                  seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
+                  seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
+                },
+              }));
+              logger.debug('✅ [SuperAdmin] Usuarios normalizados:', normalizedUsers.length);
+              
+              // Cargar empresas para todos los usuarios
+              const usersWithEmpresas = await loadAllUsersEmpresas(normalizedUsers);
+              
+              setUsers(usersWithEmpresas);
+              setLocalUsers(usersWithEmpresas);
+            }
           } else {
-            console.error('❌ [SuperAdmin] Error en getUsers:', result.message);
+            logger.error(new Error('Error en getUsers'), {
+              context: 'AccessManagement',
+              message: result.message
+            });
             setUsers([]);
             setLocalUsers([]);
           }
@@ -153,7 +363,7 @@ export default function AccessManagement() {
             try {
               const { data, error } = await supabase
                 .from('profiles')
-                .select('role') // Solo usar role, que es la columna que existe
+                .select('role', { count: 'exact' }) // Solo usar role, que es la columna que existe
                 .eq('id', user.id)
                 .single();
               return { data, error };
@@ -167,16 +377,38 @@ export default function AccessManagement() {
         // Procesar verificación de admin
         const profile = profileResult.data;
         const role = profile?.role || user.user_metadata?.role || ''; // Solo usar role, que es la columna que existe
-        const userIsAdmin = isAdminUser(user.email, role);
-        setIsAdmin(userIsAdmin);
+        
+        // VERIFICACIÓN FINAL: Super Admin tiene prioridad absoluta
+        const emailLowerFinal = (userEmail || '').toLowerCase().trim();
+        const isSuperAdminFinal = 
+          isSuperAdmin(userEmail) || 
+          emailLowerFinal === 'lionfonseca@gmail.com' ||
+          emailLowerFinal.includes('lionfonseca');
+        
+        const userIsAdmin = isSuperAdminFinal || isAdminUser(userEmail, role);
+        
+        logger.debug('[AccessManagement] Verificación Admin Final:', {
+          email: userEmail,
+          emailLower: emailLowerFinal,
+          role: role,
+          isSuperAdminFinal: isSuperAdminFinal,
+          userIsAdmin: userIsAdmin,
+        });
+        
+        // Establecer admin (Super Admin siempre es true)
+        if (isSuperAdminFinal) {
+          logger.debug('[AccessManagement] ✅✅✅ SUPER ADMIN CONFIRMADO EN VERIFICACIÓN FINAL');
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(userIsAdmin);
+        }
         setIsCheckingAdmin(false);
 
         // Procesar usuarios solo si es admin
-        console.log('🔍 [Admin] Verificación:', { 
+        logger.debug('🔍 [Admin] Verificación:', { 
           userIsAdmin, 
           usersResultSuccess: usersResult.success, 
-          usersCount: usersResult.users?.length || 0,
-          usersResult: usersResult 
+          usersCount: usersResult.users?.length || 0
         });
         if (userIsAdmin && usersResult.success) {
           // Procesar usuarios (incluso si el array está vacío o es undefined)
@@ -190,15 +422,18 @@ export default function AccessManagement() {
               seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
             },
           }));
-          console.log('✅ [Admin] Usuarios normalizados:', normalizedUsers.length, normalizedUsers);
-          setUsers(normalizedUsers);
-          setLocalUsers(normalizedUsers);
+          logger.debug('✅ [Admin] Usuarios normalizados:', normalizedUsers.length);
+          
+          // Cargar empresas para todos los usuarios
+          const usersWithEmpresas = await loadAllUsersEmpresas(normalizedUsers);
+          
+          setUsers(usersWithEmpresas);
+          setLocalUsers(usersWithEmpresas);
         } else {
-          console.warn('⚠️ [Admin] No se establecieron usuarios:', { 
+          logger.warn('⚠️ [Admin] No se establecieron usuarios:', { 
             userIsAdmin, 
             success: usersResult.success, 
-            users: usersResult.users?.length || 0,
-            usersResult 
+            users: usersResult.users?.length || 0
           });
           setUsers([]);
           setLocalUsers([]);
@@ -218,6 +453,44 @@ export default function AccessManagement() {
     initializeData();
   }, []);
 
+  // Verificación final antes de renderizar (por si el estado no se actualizó correctamente)
+  useEffect(() => {
+    const checkAdminFinal = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const email = session?.user?.email || '';
+        const emailLower = email.toLowerCase().trim();
+        const isSuperAdminFinal = 
+          isSuperAdmin(email) || 
+          emailLower === 'lionfonseca@gmail.com' ||
+          emailLower.includes('lionfonseca');
+        
+        console.log('[AccessManagement] Verificación final antes de render:', {
+          email: email,
+          isSuperAdminFinal: isSuperAdminFinal,
+          isAdminState: isAdmin,
+        });
+        
+        if (isSuperAdminFinal && !isAdmin) {
+          console.log('[AccessManagement] ⚠️ CORRIGIENDO: Super Admin detectado pero isAdmin=false, forzando acceso');
+          setIsAdmin(true);
+          setFinalAdminCheck(true);
+        } else {
+          setFinalAdminCheck(isAdmin);
+        }
+      } catch (error) {
+        console.error('[AccessManagement] Error en verificación final:', error);
+        setFinalAdminCheck(isAdmin);
+      }
+    };
+    
+    if (!isAdmin && isCheckingAdmin === false) {
+      checkAdminFinal();
+    } else if (isAdmin) {
+      setFinalAdminCheck(true);
+    }
+  }, [isAdmin, isCheckingAdmin]);
+
   // Manejar cambio de nivel de permiso (solo actualiza estado local, no guarda en BD)
   const handlePermissionLevelChange = (
     userId: string,
@@ -230,21 +503,13 @@ export default function AccessManagement() {
 
     // Si es Super Admin, no permitir cambios
     if (isSuperAdmin(currentUser.email)) {
-      setNotification({
-        type: 'error',
-        message: 'El Super Administrador tiene acceso total garantizado y sus permisos no pueden ser modificados.',
-      });
-      setTimeout(() => setNotification(null), 3000);
+      showError('El Super Administrador tiene acceso total garantizado y sus permisos no pueden ser modificados.');
       return;
     }
 
     // Si es administrador regular, no permitir cambios
     if (isAdminUser(currentUser.email, currentUser.role)) {
-      setNotification({
-        type: 'error',
-        message: 'Los administradores tienen acceso total y sus permisos no pueden ser modificados.',
-      });
-      setTimeout(() => setNotification(null), 3000);
+      showError('Los administradores tienen acceso total y sus permisos no pueden ser modificados.');
       return;
     }
 
@@ -290,16 +555,11 @@ export default function AccessManagement() {
   // Guardar todos los cambios pendientes
   const handleSaveChanges = async () => {
     if (pendingChanges.size === 0) {
-      setNotification({
-        type: 'error',
-        message: 'No hay cambios pendientes para guardar',
-      });
-      setTimeout(() => setNotification(null), 2000);
+      showWarning('No hay cambios pendientes para guardar');
       return;
     }
 
     setIsLoading(true);
-    setNotification(null);
 
     const changesArray = Array.from(pendingChanges.values());
     const errors: string[] = [];
@@ -329,7 +589,11 @@ export default function AccessManagement() {
             successes.push(`${change.permissionKey}`);
           }
         } catch (error: any) {
-          console.error('Error guardando permiso:', error);
+          logger.error(error instanceof Error ? error : new Error('Error guardando permiso'), {
+            context: 'handleSaveChanges',
+            permissionKey: change.permissionKey,
+            userId: change.userId
+          });
           errors.push(`${change.permissionKey}: ${error.message || 'Error inesperado'}`);
         } finally {
           setUpdatingPermissions(prev => {
@@ -342,37 +606,20 @@ export default function AccessManagement() {
 
       // Mostrar resultado
       if (errors.length === 0) {
-        setNotification({
-          type: 'success',
-          message: `✅ ${successes.length} permiso(s) actualizado(s) exitosamente`,
-        });
+        showSuccess(`✅ ${successes.length} permiso(s) actualizado(s) exitosamente`);
         
         // Sincronizar usuarios locales con los usuarios originales (actualizados)
         const reloadResult = await getUsers();
         if (reloadResult.success && reloadResult.users.length > 0) {
-          const normalizedUsers: User[] = reloadResult.users.map(user => ({
-            ...user,
-            permissions: {
-              trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
-              vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
-              seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
-              seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
-            },
-          }));
-          setUsers(normalizedUsers);
-          setLocalUsers(normalizedUsers);
+          const usersWithEmpresas = await normalizeUsersWithEmpresas(reloadResult.users);
+          setUsers(usersWithEmpresas);
+          setLocalUsers(usersWithEmpresas);
         }
         
         // Limpiar cambios pendientes
         setPendingChanges(new Map());
-        
-        setTimeout(() => setNotification(null), 3000);
       } else {
-        setNotification({
-          type: 'error',
-          message: `❌ ${errors.length} error(es) al guardar. ${errors.join('; ')}`,
-        });
-        setTimeout(() => setNotification(null), 5000);
+        showError(`❌ ${errors.length} error(es) al guardar. ${errors.join('; ')}`);
       }
 
       setIsLoading(false);
@@ -386,12 +633,7 @@ export default function AccessManagement() {
     // Restaurar usuarios locales a los valores originales
     setLocalUsers([...users]);
     setPendingChanges(new Map());
-    
-    setNotification({
-      type: 'success',
-      message: 'Cambios cancelados. Se restauraron los valores originales.',
-    });
-    setTimeout(() => setNotification(null), 2000);
+    showSuccess('Cambios cancelados. Se restauraron los valores originales.');
   };
 
   // Manejar cambio en los campos del formulario
@@ -407,7 +649,6 @@ export default function AccessManagement() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    setNotification(null);
 
     try {
       if (isEditMode && editingUserId) {
@@ -420,25 +661,14 @@ export default function AccessManagement() {
         const result = await updateUser(formDataToSend);
 
         if (result.success) {
-          setNotification({
-            type: 'success',
-            message: result.message || 'Usuario actualizado exitosamente',
-          });
+          showSuccess(result.message || 'Usuario actualizado exitosamente');
 
                  // Recargar usuarios desde Supabase
                  const reloadResult = await getUsers();
                  if (reloadResult.success && reloadResult.users.length > 0) {
-                   const normalizedUsers: User[] = reloadResult.users.map((user: any) => ({
-                     ...user,
-                     permissions: {
-                       trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
-                       vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
-                       seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
-                       seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
-                     },
-                   }));
-                   setUsers(normalizedUsers);
-                   setLocalUsers(normalizedUsers);
+                   const usersWithEmpresas = await normalizeUsersWithEmpresas(reloadResult.users);
+                   setUsers(usersWithEmpresas);
+                   setLocalUsers(usersWithEmpresas);
                  }
 
           // Cerrar el modal después de 1.5 segundos
@@ -446,7 +676,6 @@ export default function AccessManagement() {
             setIsModalOpen(false);
             setIsEditMode(false);
             setEditingUserId(null);
-            setNotification(null);
             setFormData({
               nombre: '',
               email: '',
@@ -455,10 +684,7 @@ export default function AccessManagement() {
             });
           }, 1500);
         } else {
-          setNotification({
-            type: 'error',
-            message: result.message || 'Error al actualizar el usuario',
-          });
+          showError(result.message || 'Error al actualizar el usuario');
         }
       } else {
         // Modo creación: crear nuevo usuario
@@ -472,10 +698,7 @@ export default function AccessManagement() {
 
         if (result.success) {
           // Mostrar notificación de éxito
-          setNotification({
-            type: 'success',
-            message: result.message || 'Usuario creado exitosamente',
-          });
+          showSuccess(result.message || 'Usuario creado exitosamente');
 
                  // Recargar usuarios desde Supabase para obtener el usuario recién creado
                  const reloadResult = await getUsers();
@@ -519,22 +742,17 @@ export default function AccessManagement() {
           // Cerrar el modal automáticamente después de mostrar éxito
           setTimeout(() => {
             setIsModalOpen(false);
-            setNotification(null);
           }, 1500);
         } else {
           // Mostrar notificación de error
-          setNotification({
-            type: 'error',
-            message: result.message || 'Error al crear el usuario',
-          });
+          showError(result.message || 'Error al crear el usuario');
         }
       }
     } catch (error: any) {
-      console.error('Error al procesar usuario:', error);
-      setNotification({
-        type: 'error',
-        message: error.message || 'Error inesperado al procesar el usuario',
+      logger.error(error instanceof Error ? error : new Error('Error inesperado al procesar el usuario'), {
+        context: 'handleProcessUser'
       });
+      showError(error.message || 'Error inesperado al procesar el usuario');
     } finally {
       setIsLoading(false);
     }
@@ -551,7 +769,6 @@ export default function AccessManagement() {
       rol: user.role,
     });
     setIsModalOpen(true);
-    setNotification(null);
   };
 
   // Abrir modal para crear nuevo usuario
@@ -565,14 +782,13 @@ export default function AccessManagement() {
       rol: 'Usuario',
     });
     setIsModalOpen(true);
-    setNotification(null);
   };
 
   // Manejar eliminación de usuario
   const handleDeleteUser = async (user: User) => {
     // Prevenir auto-eliminación
     if (currentUserId === user.id) {
-      alert('No puedes eliminar tu propia cuenta. Contacta a otro administrador.');
+      showWarning('No puedes eliminar tu propia cuenta. Contacta a otro administrador.');
       return;
     }
 
@@ -584,53 +800,33 @@ export default function AccessManagement() {
     }
 
     setIsLoading(true);
-    setNotification(null);
 
     try {
       const result = await deleteUser(user.id);
 
       if (result.success) {
-        setNotification({
-          type: 'success',
-          message: result.message || 'Usuario eliminado exitosamente',
-        });
+        showSuccess(result.message || 'Usuario eliminado exitosamente');
 
                  // Recargar usuarios desde Supabase
                  const reloadResult = await getUsers();
                  if (reloadResult.success && reloadResult.users.length > 0) {
-                   const normalizedUsers: User[] = reloadResult.users.map((user: any) => ({
-                     ...user,
-                     permissions: {
-                       trabajoModificado: (user.permissions?.trabajoModificado || 'none') as PermissionLevel,
-                       vigilanciaMedica: (user.permissions?.vigilanciaMedica || 'none') as PermissionLevel,
-                       seguimientoTrabajadores: (user.permissions?.seguimientoTrabajadores || 'none') as PermissionLevel,
-                       seguridadHigiene: (user.permissions?.seguridadHigiene || 'none') as PermissionLevel,
-                     },
-                   }));
-                   setUsers(normalizedUsers);
-                   setLocalUsers(normalizedUsers);
+                   const usersWithEmpresas = await normalizeUsersWithEmpresas(reloadResult.users);
+                   setUsers(usersWithEmpresas);
+                   setLocalUsers(usersWithEmpresas);
                  } else {
           // Si falla la recarga, eliminar localmente
           setUsers(prevUsers => prevUsers.filter(u => u.id !== user.id));
           setLocalUsers(prevUsers => prevUsers.filter(u => u.id !== user.id));
         }
-
-        // Limpiar notificación después de 2 segundos
-        setTimeout(() => {
-          setNotification(null);
-        }, 2000);
       } else {
-        setNotification({
-          type: 'error',
-          message: result.message || 'Error al eliminar el usuario',
-        });
+        showError(result.message || 'Error al eliminar el usuario');
       }
     } catch (error: any) {
-      console.error('Error al eliminar usuario:', error);
-      setNotification({
-        type: 'error',
-        message: error.message || 'Error inesperado al eliminar el usuario',
+      logger.error(error instanceof Error ? error : new Error('Error inesperado al eliminar el usuario'), {
+        context: 'handleDeleteUser',
+        userId: user.id
       });
+      showError(error.message || 'Error inesperado al eliminar el usuario');
     } finally {
       setIsLoading(false);
     }
@@ -641,7 +837,6 @@ export default function AccessManagement() {
     setIsModalOpen(false);
     setIsEditMode(false);
     setEditingUserId(null);
-    setNotification(null);
     setFormData({
       nombre: '',
       email: '',
@@ -662,8 +857,10 @@ export default function AccessManagement() {
     );
   }
 
+
   // Si no es administrador, mostrar mensaje de acceso denegado
-  if (!isAdmin) {
+  // PERO esperar un momento para la verificación final
+  if (!isAdmin && finalAdminCheck === false) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
@@ -677,6 +874,18 @@ export default function AccessManagement() {
           <p className="text-sm text-red-500">
             Solo los administradores pueden gestionar los accesos de usuarios.
           </p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Si está verificando o esperando verificación final, mostrar loading
+  if (isCheckingAdmin || finalAdminCheck === null) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-indigo-600" size={48} />
+          <p className="text-lg font-semibold text-slate-600">Verificando permisos...</p>
         </div>
       </div>
     );
@@ -773,6 +982,9 @@ export default function AccessManagement() {
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   USUARIO
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  EMPRESAS
                 </th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   TRABAJO MODIFICADO
@@ -892,6 +1104,47 @@ export default function AccessManagement() {
                     </div>
                   </td>
 
+                  {/* Columna Empresas */}
+                  <td className="px-6 py-4">
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium text-gray-900">
+                        {user.empresas && user.empresas.length > 0 ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-indigo-600">{user.empresas.length}</span>
+                            <span className="text-gray-500">
+                              {user.empresas.length === 1 ? 'empresa' : 'empresas'}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">Sin empresas</span>
+                        )}
+                      </div>
+                      {user.empresas && user.empresas.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {user.empresas.slice(0, 3).map((empresa) => (
+                            <span
+                              key={empresa.id}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800"
+                              title={empresa.nombre}
+                            >
+                              {empresa.nombre.length > 20 
+                                ? `${empresa.nombre.substring(0, 20)}...` 
+                                : empresa.nombre}
+                            </span>
+                          ))}
+                          {user.empresas.length > 3 && (
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600"
+                              title={`${user.empresas.length - 3} más: ${user.empresas.slice(3).map(e => e.nombre).join(', ')}`}
+                            >
+                              +{user.empresas.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+
                   {/* Select Trabajo Modificado */}
                   <td className="px-6 py-4 text-center">
                     {renderPermissionSelect('trabajoModificado', 'Trabajo Modificado')}
@@ -964,24 +1217,6 @@ export default function AccessManagement() {
                 <X size={20} className="text-gray-500" />
               </button>
             </div>
-
-            {/* Notificación */}
-            {notification && (
-              <div
-                className={`mx-6 mt-4 p-3 rounded-lg flex items-center gap-2 ${
-                  notification.type === 'success'
-                    ? 'bg-green-50 text-green-800 border border-green-200'
-                    : 'bg-red-50 text-red-800 border border-red-200'
-                }`}
-              >
-                {notification.type === 'success' ? (
-                  <CheckCircle size={18} />
-                ) : (
-                  <AlertCircle size={18} />
-                )}
-                <span className="text-sm font-medium">{notification.message}</span>
-              </div>
-            )}
 
             {/* Formulario */}
             <form onSubmit={handleSubmit} className="p-6 space-y-4">

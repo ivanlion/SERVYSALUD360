@@ -7,6 +7,9 @@
  * - Asistente IA con Google Gemini
  * - Análisis de PDFs médicos
  * 
+ * OPTIMIZACIÓN: Lazy loading implementado para componentes pesados
+ * para mejorar el tiempo de carga inicial de la aplicación.
+ * 
  * @author Sistema de Gestión de Salud Ocupacional
  * @version 1.0.0
  */
@@ -25,37 +28,106 @@ import {
   Trash2
 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { useRouter } from 'next/navigation';
+import { useNavigation } from '../contexts/NavigationContext';
+import { useChat } from '../contexts/ChatContext';
+
+// ============================================================================
+// COMPONENTES LIGEROS - Importación normal
+// Estos componentes se cargan inmediatamente porque son esenciales para la UI
+// ============================================================================
 import Dashboard from '../components/Dashboard';
 import WorkModifiedDashboard from '../components/WorkModifiedDashboard';
 import AuthGuard from '../components/AuthGuard';
 import { CaseData, INITIAL_CASE, createNewReevaluation } from '../types';
 import { supabase } from '../lib/supabase';
-import { useRouter } from 'next/navigation';
-import { useNavigation } from '../contexts/NavigationContext';
-import { useChat } from '../contexts/ChatContext';
 
-// Lazy loading de componentes pesados para mejor rendimiento
-const CaseForm = dynamic(() => import('../components/CaseForm'), {
-  loading: () => (
-    <div className="flex items-center justify-center py-20">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="animate-spin text-indigo-600" size={48} />
-        <p className="text-gray-600">Cargando formulario...</p>
-      </div>
+// ============================================================================
+// COMPONENTES PESADOS - Lazy Loading con dynamic import
+// Estos componentes se cargan solo cuando son necesarios, mejorando el
+// tiempo de carga inicial y reduciendo el bundle size inicial.
+// ============================================================================
+
+/**
+ * Componente de carga unificado para lazy loading
+ * Muestra un spinner y mensaje mientras se carga el módulo
+ */
+const LoadingSpinner = ({ message = 'Cargando módulo...' }: { message?: string }) => (
+  <div className="flex items-center justify-center p-8">
+    <div className="flex flex-col items-center gap-4">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <span className="ml-3 text-gray-600">{message}</span>
     </div>
-  ),
+  </div>
+);
+
+/**
+ * CaseForm - Formulario multi-paso para registro de trabajo modificado
+ * Lazy loading: Aunque se usa frecuentemente, es un componente pesado
+ * con múltiples secciones y validaciones complejas
+ */
+const CaseForm = dynamic(() => import('../components/CaseForm'), {
+  loading: () => <LoadingSpinner message="Cargando formulario..." />,
   ssr: false
 });
 
+/**
+ * AccessManagement - Gestión de accesos y permisos de usuarios
+ * Lazy loading: Componente pesado con tablas complejas y múltiples consultas
+ * Solo accesible para administradores
+ */
 const AccessManagement = dynamic(() => import('../components/AccessManagement'), {
-  loading: () => (
-    <div className="flex items-center justify-center py-20">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="animate-spin text-indigo-600" size={48} />
-        <p className="text-gray-600">Cargando gestión de accesos...</p>
-      </div>
-    </div>
-  ),
+  loading: () => <LoadingSpinner message="Cargando gestión de accesos..." />,
+  ssr: false
+});
+
+/**
+ * AnalizarEMOs - Análisis de EMOs (Exámenes Médicos Ocupacionales) con IA
+ * Lazy loading: Componente pesado que usa Google Gemini AI para análisis de PDFs
+ * Incluye procesamiento de archivos y llamadas a APIs externas
+ */
+const AnalizarEMOs = dynamic(() => import('../components/AnalizarEMOs'), {
+  loading: () => <LoadingSpinner message="Cargando análisis de EMOs..." />,
+  ssr: false
+});
+
+/**
+ * Ley29733Consentimiento - Formulario de consentimiento informado
+ * Lazy loading: Componente con formulario complejo y validaciones
+ * No es crítico para la carga inicial
+ */
+const Ley29733Consentimiento = dynamic(() => import('../components/Ley29733Consentimiento'), {
+  loading: () => <LoadingSpinner message="Cargando formulario de consentimiento..." />,
+  ssr: false
+});
+
+/**
+ * UploadEMO - Subida y análisis directo de EMOs
+ * Lazy loading: Componente pesado con drag & drop, análisis de PDFs con IA
+ * y procesamiento de archivos grandes
+ */
+const UploadEMO = dynamic(() => import('../components/UploadEMO'), {
+  loading: () => <LoadingSpinner message="Cargando upload de EMO..." />,
+  ssr: false
+});
+
+/**
+ * GestionEmpresas - Gestión CRUD de empresas
+ * Lazy loading: Componente con formularios complejos, validaciones y
+ * consultas a APIs externas (SUNAT RUC)
+ */
+const GestionEmpresas = dynamic(() => import('../components/GestionEmpresas'), {
+  loading: () => <LoadingSpinner message="Cargando gestión de empresas..." />,
+  ssr: false
+});
+
+/**
+ * HistorialAnalisis - Historial y comparación de análisis de EMOs
+ * Lazy loading: Componente con tablas complejas, filtros y comparación
+ * de análisis previos
+ */
+const HistorialAnalisis = dynamic(() => import('../components/HistorialAnalisis'), {
+  loading: () => <LoadingSpinner message="Cargando historial de análisis..." />,
   ssr: false
 });
 
@@ -152,7 +224,7 @@ const MOCK_CASES: CaseData[] = [
 /**
  * Tipos de vista disponibles en la aplicación
  */
-type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT';
+type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT' | 'VIGILANCIA_MEDICA' | 'LEY29733' | 'GESTION_EMPRESAS' | 'UPLOAD_EMO' | 'HISTORIAL_ANALISIS';
 
 /**
  * Componente principal de la aplicación
@@ -564,6 +636,31 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         )}
         {currentView === 'ACCESS_MANAGEMENT' && (
           <AccessManagement />
+        )}
+        {currentView === 'VIGILANCIA_MEDICA' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <AnalizarEMOs />
+          </div>
+        )}
+        {currentView === 'LEY29733' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <Ley29733Consentimiento />
+          </div>
+        )}
+        {currentView === 'GESTION_EMPRESAS' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <GestionEmpresas />
+          </div>
+        )}
+        {currentView === 'UPLOAD_EMO' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <UploadEMO />
+          </div>
+        )}
+        {currentView === 'HISTORIAL_ANALISIS' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <HistorialAnalisis />
+          </div>
         )}
       </main>
 

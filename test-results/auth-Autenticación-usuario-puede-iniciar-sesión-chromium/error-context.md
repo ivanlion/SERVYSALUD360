@@ -1,0 +1,56 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img [ref=e6]
+      - heading "Sistema de Gestión de Salud Ocupacional" [level=1] [ref=e8]
+      - paragraph [ref=e9]: Plataforma integral de vigilancia y cumplimiento médico
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - heading "Iniciar Sesión" [level=2] [ref=e12]
+        - paragraph [ref=e13]: Ingresa tus credenciales para acceder
+      - generic [ref=e14]:
+        - img [ref=e15]
+        - paragraph [ref=e17]: Invalid login credentials
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - generic [ref=e20]: Correo Electrónico
+          - generic [ref=e21]:
+            - generic:
+              - img
+            - textbox "Correo Electrónico" [ref=e22]:
+              - /placeholder: usuario@servysalud.com
+              - text: test@servysalud.com
+        - generic [ref=e23]:
+          - generic [ref=e24]: Contraseña
+          - generic [ref=e25]:
+            - generic:
+              - img
+            - textbox "Contraseña" [ref=e26]:
+              - /placeholder: ••••••••
+              - text: TestPassword123
+            - button [ref=e27]:
+              - img [ref=e28]
+        - button "Iniciar Sesión" [ref=e31]:
+          - generic [ref=e32]:
+            - img [ref=e33]
+            - text: Iniciar Sesión
+      - paragraph [ref=e37]: Plataforma segura de gestión de salud ocupacional
+    - paragraph [ref=e38]: © 2025 Sistema de Gestión de Salud Ocupacional - Todos los derechos reservados
+  - button "Abrir chat de asistente IA" [ref=e39]:
+    - img [ref=e40]
+  - generic [ref=e46] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e47]:
+      - img [ref=e48]
+    - generic [ref=e51]:
+      - button "Open issues overlay" [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]: "0"
+          - generic [ref=e55]: "1"
+        - generic [ref=e56]: Issue
+      - button "Collapse issues badge" [ref=e57]:
+        - img [ref=e58]
+  - alert [ref=e60]
+```

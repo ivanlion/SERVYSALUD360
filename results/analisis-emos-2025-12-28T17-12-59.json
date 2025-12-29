@@ -1,0 +1,80 @@
+[
+  {
+    "archivo": "EMO_HIDALGO MORI ORLANDO.pdf",
+    "aptitud": "ERROR",
+    "restricciones": {
+      "lentes": "N/A",
+      "altura": "N/A",
+      "electricidad": "N/A"
+    },
+    "restriccionesCount": 0,
+    "hallazgos": [],
+    "datosCompletos": {},
+    "error": "Error después de 3 intentos: Error desconocido"
+  },
+  {
+    "archivo": "EMO_MELGAREJO SANTAMARIA FRAY ALEX.pdf",
+    "aptitud": "ERROR",
+    "restricciones": {
+      "lentes": "N/A",
+      "altura": "N/A",
+      "electricidad": "N/A"
+    },
+    "restriccionesCount": 0,
+    "hallazgos": [],
+    "datosCompletos": {},
+    "error": "Error después de 3 intentos: Error desconocido"
+  },
+  {
+    "archivo": "EMO_MORALES GIRALDO GUADALUPE IRMA.pdf",
+    "aptitud": "ERROR",
+    "restricciones": {
+      "lentes": "N/A",
+      "altura": "N/A",
+      "electricidad": "N/A"
+    },
+    "restriccionesCount": 0,
+    "hallazgos": [],
+    "datosCompletos": {},
+    "error": "Error después de 3 intentos: Error desconocido"
+  },
+  {
+    "archivo": "EMO_ROSAS RUBIO RENATO ROBERTO.pdf",
+    "aptitud": "ERROR",
+    "restricciones": {
+      "lentes": "N/A",
+      "altura": "N/A",
+      "electricidad": "N/A"
+    },
+    "restriccionesCount": 0,
+    "hallazgos": [],
+    "datosCompletos": {},
+    "error": "Error después de 3 intentos: Error desconocido"
+  },
+  {
+    "archivo": "EMO.0_ALMENDRADES COCHACHIN JOB IVAN.pdf",
+    "aptitud": "ERROR",
+    "restricciones": {
+      "lentes": "N/A",
+      "altura": "N/A",
+      "electricidad": "N/A"
+    },
+    "restriccionesCount": 0,
+    "hallazgos": [],
+    "datosCompletos": {},
+    "error": "Error después de 3 intentos: HTTP error! status: 500"
+  },
+  {
+    "archivo": "PACAHUALA RINCON ANDRES DANIEL.pdf",
+    "aptitud": "ERROR",
+    "restricciones": {
+      "lentes": "N/A",
+      "altura": "N/A",
+      "electricidad": "N/A"
+    },
+    "restriccionesCount": 0,
+    "hallazgos": [],
+    "datosCompletos": {},
+    "error": "Error después de 3 intentos: Error desconocido"
+  }
+]

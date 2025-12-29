@@ -1,0 +1,32 @@
+📧 INSTRUCCIONES PARA ENVIAR PDF POR EMAIL
+
+📄 Archivo PDF: reporte-vigilancia-empresa-abc-s-a--2025-12-28T18-18-27.pdf
+📊 Tamaño: 0.00 MB
+👤 Cliente: Empresa ABC S.A.
+
+OPCIÓN 1: Gmail / Outlook (Web)
+────────────────────────────────
+1. Abre tu cliente de email (Gmail, Outlook, etc.)
+2. Crea un nuevo mensaje
+3. Adjunta el archivo: /Users/alexanderleon/Documents/PROYECTOS_IA_SERVYSALUD/servysalud-pro/reports/reporte-vigilancia-empresa-abc-s-a--2025-12-28T18-18-27.pdf
+4. Usa el email generado con: npm run generar-email "Empresa ABC S.A."
+5. Copia el contenido del email y pégalo en el cuerpo
+6. Envía
+
+OPCIÓN 2: Usando Mail (macOS)
+──────────────────────────────
+1. Abre Mail.app
+2. Crea un nuevo mensaje
+3. Arrastra el PDF a la ventana del email
+4. Usa el email generado como plantilla
+
+OPCIÓN 3: Usando línea de comandos (mail)
+──────────────────────────────────────────
+mail -s "🔍 Hallazgos importantes - EMOs" Empresa ABC S.A.@ejemplo.com < email.txt
+uuencode /Users/alexanderleon/Documents/PROYECTOS_IA_SERVYSALUD/servysalud-pro/reports/reporte-vigilancia-empresa-abc-s-a--2025-12-28T18-18-27.pdf reporte-vigilancia-empresa-abc-s-a--2025-12-28T18-18-27.pdf | mail -s "Reporte Vigilancia Médica" Empresa ABC S.A.@ejemplo.com
+
+NOTA: Para envío automático, se requiere configurar:
+- Nodemailer con SMTP
+- O servicio de email como SendGrid, Mailgun, etc.
+
+¿Deseas que implemente envío automático por email?

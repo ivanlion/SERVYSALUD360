@@ -119,11 +119,23 @@ export async function handleStorageTool(
         .download(path);
       
       if (error) {
+        // Mejorar mensaje de error según el tipo de error
+        let errorMessage = `Error al descargar archivo: ${error.message}`;
+        const errorStr = error.message || '';
+        
+        if (errorStr.includes('Object not found') || errorStr.includes('404') || errorStr.includes('not found')) {
+          errorMessage = `El archivo "${path}" no existe en el bucket "${bucket}"`;
+        } else if (errorStr.includes('new row violates row-level security policy') || errorStr.includes('row-level security')) {
+          errorMessage = `No tienes permisos para acceder al archivo "${path}"`;
+        } else if (errorStr.includes('403') || errorStr.includes('Forbidden') || errorStr.includes('Access denied')) {
+          errorMessage = `Acceso denegado al archivo "${path}". Verifica tus permisos.`;
+        }
+        
         return {
           content: [
             {
               type: 'text',
-              text: `Error al descargar archivo: ${error.message}`,
+              text: errorMessage,
             },
           ],
           isError: true,

@@ -12,6 +12,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 import { Loader2 } from 'lucide-react';
+import { logger } from '@/utils/logger';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -23,20 +24,99 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
+
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // Timeout de 10 segundos para evitar que se quede colgado
+        timeoutId = setTimeout(() => {
+          if (isMounted) {
+            logger.warn('[AuthGuard] Timeout: La verificación tardó más de 10 segundos, usando fallback');
+            // Intentar con getUser como fallback
+            supabase.auth.getUser().then(({ data: { user }, error: userError }) => {
+              if (!isMounted) return;
+              if (userError || !user) {
+                router.push('/login');
+              } else {
+                setIsAuthenticated(true);
+              }
+              setIsLoading(false);
+            }).catch(() => {
+              if (isMounted) {
+                router.push('/login');
+                setIsLoading(false);
+              }
+            });
+          }
+        }, 10000);
+
+        // Intentar obtener la sesión
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        clearTimeout(timeoutId);
+
+        if (!isMounted) return;
+
+        if (error) {
+          logger.error(error instanceof Error ? error : new Error('Error al obtener sesión'), {
+            context: 'AuthGuard'
+          });
+          setIsLoading(false);
+          router.push('/login');
+          return;
+        }
         
         if (session) {
           setIsAuthenticated(true);
         } else {
+          // Si no hay sesión, intentar con getUser como fallback
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              setIsAuthenticated(true);
+            } else {
+              router.push('/login');
+            }
+          } catch (userError) {
+            logger.error(userError instanceof Error ? userError : new Error('Error al obtener usuario'), {
+              context: 'AuthGuard'
+            });
+            router.push('/login');
+          }
+        }
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        logger.error(error instanceof Error ? error : new Error('Error al verificar autenticación'), {
+          context: 'AuthGuard'
+        });
+        
+        if (!isMounted) return;
+
+        // Si es timeout, intentar una vez más con getUser
+        if (error?.message?.includes('Timeout')) {
+          logger.debug('[AuthGuard] Timeout detectado, intentando con getUser...');
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user && isMounted) {
+              setIsAuthenticated(true);
+              setIsLoading(false);
+              return;
+            }
+          } catch (fallbackError) {
+            logger.error(fallbackError instanceof Error ? fallbackError : new Error('Error en fallback'), {
+              context: 'AuthGuard'
+            });
+          }
+        }
+        
+        if (isMounted) {
           router.push('/login');
         }
-      } catch (error) {
-        console.error('Error al verificar autenticación:', error);
-        router.push('/login');
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -44,15 +124,21 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
     // Escuchar cambios en la autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+
       if (session) {
         setIsAuthenticated(true);
+        setIsLoading(false);
       } else {
         setIsAuthenticated(false);
+        setIsLoading(false);
         router.push('/login');
       }
     });
 
     return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, [router]);

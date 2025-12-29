@@ -14,6 +14,8 @@ import { casosTools, handleCasosTool } from './casos';
 import { trabajadoresTools, handleTrabajadoresTool } from './trabajadores';
 import { examenesTools, handleExamenesTool } from './examenes';
 import { storageTools, handleStorageTool } from './storage';
+import { analyticsTools, handleAnalyticsTool } from './analytics';
+import { empresasTools, handleEmpresasTool } from './empresas';
 
 /**
  * Lista todas las herramientas disponibles
@@ -26,6 +28,8 @@ export async function listTools(): Promise<Tool[]> {
     ...trabajadoresTools,
     ...examenesTools,
     ...storageTools,
+    ...analyticsTools,
+    ...empresasTools,
   ];
 }
 
@@ -57,6 +61,14 @@ export async function handleToolCall(
   
   if (toolName.startsWith('storage_')) {
     return await handleStorageTool(toolName, args, supabase);
+  }
+  
+  if (toolName.startsWith('analytics_')) {
+    return await handleAnalyticsTool(toolName, args, supabase);
+  }
+  
+  if (toolName.startsWith('empresas_')) {
+    return await handleEmpresasTool(toolName, args, supabase);
   }
 
   throw new Error(`Herramienta desconocida: ${toolName}`);
