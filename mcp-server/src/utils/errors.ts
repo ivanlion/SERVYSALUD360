@@ -65,7 +65,7 @@ export function createValidationError(validationErrors: any[]): MCPErrorResponse
 /**
  * Crea un error de Supabase
  * 
- * @param error - Error de Supabase
+ * @param error - Error de Supabase (puede ser PostgrestError, StorageError, etc.)
  * @param context - Contexto adicional
  * @returns Respuesta de error MCP
  */
@@ -74,15 +74,17 @@ export function createSupabaseError(
   context?: string
 ): MCPErrorResponse {
   const message = error.message || 'Error desconocido de Supabase';
-  const code = error.code || 'SUPABASE_ERROR';
+  // Nota: StorageError no tiene propiedad 'code', solo PostgrestError la tiene
+  const code = (error as any).code || 'SUPABASE_ERROR';
   
   return createMCPError(
     context ? `${context}: ${message}` : message,
     code,
     {
-      supabase_code: error.code,
-      supabase_hint: error.hint,
-      supabase_details: error.details,
+      // Solo incluir propiedades si existen (StorageError no tiene code, hint, details)
+      ...((error as any).code && { supabase_code: (error as any).code }),
+      ...((error as any).hint && { supabase_hint: (error as any).hint }),
+      ...((error as any).details && { supabase_details: (error as any).details }),
     }
   );
 }
