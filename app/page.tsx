@@ -170,6 +170,16 @@ const PlanAnualSST = dynamic(() => import('../components/PlanAnualSST'), {
 });
 
 /**
+ * AusentismoLaboral - Gestión del ausentismo laboral
+ * Lazy loading: Componente con registro, consulta y gestión de ausentismo
+ * con estadísticas, gráficos y filtros avanzados
+ */
+const AusentismoLaboral = dynamic(() => import('../components/AusentismoLaboral'), {
+  loading: () => <LoadingSpinner message="Cargando Ausentismo Laboral..." />,
+  ssr: false
+});
+
+/**
  * Datos de ejemplo para demostración (no se utilizan en producción)
  * Los datos reales se obtienen de Supabase
  */
@@ -725,6 +735,11 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         {currentView === 'PLAN_ANUAL_SST' && (
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
             <PlanAnualSST />
+          </div>
+        )}
+        {currentView === 'AUSENTISMO_LABORAL' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <AusentismoLaboral />
           </div>
         )}
       </main>
