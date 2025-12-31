@@ -150,6 +150,16 @@ const HistorialAnalisis = dynamic(() => import('../components/HistorialAnalisis'
 });
 
 /**
+ * GestionTrabajadores - Gestión completa de trabajadores
+ * Lazy loading: Componente con tabla, paginación, búsqueda, filtros
+ * y formulario modal para CRUD de trabajadores
+ */
+const GestionTrabajadores = dynamic(() => import('../components/GestionTrabajadores'), {
+  loading: () => <LoadingSpinner message="Cargando gestión de trabajadores..." />,
+  ssr: false
+});
+
+/**
  * Datos de ejemplo para demostración (no se utilizan en producción)
  * Los datos reales se obtienen de Supabase
  */
@@ -695,6 +705,11 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         {currentView === 'HISTORIAL_ANALISIS' && (
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
             <HistorialAnalisis />
+          </div>
+        )}
+        {currentView === 'GESTION_TRABAJADORES' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <GestionTrabajadores />
           </div>
         )}
       </main>
