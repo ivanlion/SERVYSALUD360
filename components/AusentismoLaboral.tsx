@@ -88,6 +88,8 @@ export default function AusentismoLaboralComponent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetalleModalOpen, setIsDetalleModalOpen] = useState(false);
+  const [isCertificadoModalOpen, setIsCertificadoModalOpen] = useState(false);
+  const [ausentismoCertificado, setAusentismoCertificado] = useState<AusentismoConTrabajador | null>(null);
   const [ausentismoDetalle, setAusentismoDetalle] = useState<AusentismoConTrabajador | null>(null);
   const [editingAusentismo, setEditingAusentismo] = useState<AusentismoConTrabajador | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -341,6 +343,41 @@ export default function AusentismoLaboralComponent() {
         return;
       }
 
+      // Validar solapamiento de fechas para el mismo trabajador
+      if (validation.data.trabajador_id) {
+        const fechaInicio = new Date(validation.data.fecha_inicio);
+        const fechaFin = validation.data.fecha_fin ? new Date(validation.data.fecha_fin) : null;
+        
+        const ausentismosTrabajador = ausentismos.filter(a => 
+          a.trabajador_id === validation.data.trabajador_id && 
+          (!editingAusentismo || a.id !== editingAusentismo.id) &&
+          a.estado === 'Activo'
+        );
+
+        const haySolapamiento = ausentismosTrabajador.some(a => {
+          const inicioExistente = new Date(a.fecha_inicio);
+          const finExistente = a.fecha_fin ? new Date(a.fecha_fin) : null;
+          
+          // Verificar si hay solapamiento
+          if (fechaFin && finExistente) {
+            return (fechaInicio <= finExistente && fechaFin >= inicioExistente);
+          } else if (fechaFin && !finExistente) {
+            return fechaInicio <= new Date() && fechaFin >= inicioExistente;
+          } else if (!fechaFin && finExistente) {
+            return fechaInicio <= finExistente && new Date() >= inicioExistente;
+          } else {
+            return fechaInicio <= new Date() && new Date() >= inicioExistente;
+          }
+        });
+
+        if (haySolapamiento) {
+          setFormErrors({ fecha_inicio: 'El trabajador ya tiene un ausentismo activo en este período' });
+          showError('El trabajador ya tiene un ausentismo activo que se solapa con las fechas seleccionadas');
+          setIsSaving(false);
+          return;
+        }
+      }
+
       // Calcular días automáticamente
       const diasCalculados = calcularDias(validation.data.fecha_inicio, validation.data.fecha_fin);
 
@@ -552,6 +589,46 @@ export default function AusentismoLaboralComponent() {
   const handleVerDetalle = (ausentismo: AusentismoConTrabajador) => {
     setAusentismoDetalle(ausentismo);
     setIsDetalleModalOpen(true);
+  };
+
+  // Abrir modal de certificado médico
+  const handleVerCertificado = (ausentismo: AusentismoConTrabajador) => {
+    setAusentismoCertificado(ausentismo);
+    setIsCertificadoModalOpen(true);
+  };
+
+  // Descargar certificado médico
+  const handleDescargarCertificado = async () => {
+    const certificadoUrl = (ausentismoCertificado as any)?.certificado_medico_url;
+    if (!certificadoUrl) {
+      showError('No hay certificado médico disponible');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('ausentismo')
+        .download(certificadoUrl);
+
+      if (error) {
+        logger.error('[AusentismoLaboral] Error al descargar certificado', error);
+        showError('Error al descargar certificado: ' + error.message);
+        return;
+      }
+
+      const url = window.URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certificado_${ausentismoCertificado?.trabajador?.numero_documento || 'medico'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showSuccess('Certificado descargado correctamente');
+    } catch (error: any) {
+      logger.error('[AusentismoLaboral] Error inesperado al descargar', error);
+      showError('Error al descargar certificado');
+    }
   };
 
   if (!empresaActiva) {
@@ -869,12 +946,15 @@ export default function AusentismoLaboralComponent() {
                               <CheckCircle2 size={18} />
                             </button>
                           )}
-                          <button
-                            className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
-                            title="Ver certificado médico"
-                          >
-                            <FileText size={18} />
-                          </button>
+                          {(ausentismo as any).certificado_medico_url && (
+                            <button
+                              onClick={() => handleVerCertificado(ausentismo)}
+                              className="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                              title="Ver certificado médico"
+                            >
+                              <FileText size={18} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1150,6 +1230,97 @@ export default function AusentismoLaboralComponent() {
                     Motivo
                   </label>
                   <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{ausentismoDetalle.motivo}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Certificado Médico */}
+      {isCertificadoModalOpen && ausentismoCertificado && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Certificado Médico
+              </h2>
+              <button
+                onClick={() => setIsCertificadoModalOpen(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Trabajador
+                  </label>
+                  <p className="text-gray-900 dark:text-white">
+                    {ausentismoCertificado.trabajador ? getNombreCompleto(ausentismoCertificado.trabajador) : 'N/A'}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tipo de Ausentismo
+                  </label>
+                  <p className="text-gray-900 dark:text-white">{ausentismoCertificado.tipo_ausentismo}</p>
+                </div>
+
+                {(ausentismoCertificado as any).numero_certificado && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Número de Certificado
+                    </label>
+                    <p className="text-gray-900 dark:text-white">{(ausentismoCertificado as any).numero_certificado}</p>
+                  </div>
+                )}
+
+                {(ausentismoCertificado as any).establecimiento_salud && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Establecimiento de Salud
+                    </label>
+                    <p className="text-gray-900 dark:text-white">{(ausentismoCertificado as any).establecimiento_salud}</p>
+                  </div>
+                )}
+              </div>
+
+              {(ausentismoCertificado as any).certificado_medico_url ? (
+                <div className="mt-6">
+                  <iframe
+                    src={(ausentismoCertificado as any).certificado_medico_url}
+                    className="w-full h-96 border border-gray-300 dark:border-gray-600 rounded-lg"
+                    title="Certificado Médico"
+                  />
+                  <div className="mt-4 flex items-center justify-end gap-3">
+                    <a
+                      href={(ausentismoCertificado as any).certificado_medico_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Abrir en nueva pestaña
+                    </a>
+                    <button
+                      onClick={handleDescargarCertificado}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <Download size={18} />
+                      <span>Descargar</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <FileText className="mx-auto text-gray-400 mb-4" size={48} />
+                  <p className="text-gray-600 dark:text-gray-400">
+                    No hay certificado médico disponible
+                  </p>
                 </div>
               )}
             </div>

@@ -109,7 +109,7 @@ export default function GestionCapacitacionesComponent() {
   });
   
   // Asistencia
-  const [asistencias, setAsistencias] = useState<Record<string, { asistio: boolean; aprobo: boolean }>>({});
+  const [asistencias, setAsistencias] = useState<Record<string, { asistio: boolean; aprobo: boolean; nota?: number }>>({});
   
   // Filtros
   const [estadoFilter, setEstadoFilter] = useState<'Programada' | 'Ejecutada' | 'Cancelada' | 'Todos'>('Todos');
@@ -428,18 +428,19 @@ export default function GestionCapacitacionesComponent() {
     setCapacitacionParaAsistencia(capacitacion);
     
     // Cargar asistencias existentes
-    const asistenciasExistentes: Record<string, { asistio: boolean; aprobo: boolean }> = {};
+    const asistenciasExistentes: Record<string, { asistio: boolean; aprobo: boolean; nota?: number }> = {};
     (capacitacion.asistencias || []).forEach(a => {
       asistenciasExistentes[a.trabajador_id] = {
         asistio: a.asistio,
         aprobo: a.aprobo,
+        nota: (a as any).nota_obtenida || undefined,
       };
     });
     
     // Inicializar todos los trabajadores
     trabajadores.forEach(t => {
       if (!asistenciasExistentes[t.id]) {
-        asistenciasExistentes[t.id] = { asistio: false, aprobo: false };
+        asistenciasExistentes[t.id] = { asistio: false, aprobo: false, nota: undefined };
       }
     });
     
@@ -474,6 +475,7 @@ export default function GestionCapacitacionesComponent() {
           trabajador_id: trabajadorId,
           asistio: data.asistio,
           aprobo: data.aprobo,
+          nota_obtenida: data.nota,
         }));
 
       if (asistenciasToInsert.length > 0) {
@@ -1203,7 +1205,7 @@ export default function GestionCapacitacionesComponent() {
 
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {trabajadores.map((trabajador) => {
-                  const asistencia = asistencias[trabajador.id] || { asistio: false, aprobo: false };
+                  const asistencia = asistencias[trabajador.id] || { asistio: false, aprobo: false, nota: undefined };
                   
                   return (
                     <div
@@ -1254,6 +1256,29 @@ export default function GestionCapacitacionesComponent() {
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">Aprobó</span>
                         </label>
+                        {asistencia.asistio && (
+                          <div className="flex items-center gap-2">
+                            <label className="text-sm text-gray-700 dark:text-gray-300">Nota:</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="20"
+                              step="0.1"
+                              value={asistencia.nota || ''}
+                              onChange={(e) => {
+                                setAsistencias({
+                                  ...asistencias,
+                                  [trabajador.id]: {
+                                    ...asistencia,
+                                    nota: e.target.value ? parseFloat(e.target.value) : undefined,
+                                  },
+                                });
+                              }}
+                              className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
+                              placeholder="0-20"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1261,9 +1286,33 @@ export default function GestionCapacitacionesComponent() {
               </div>
 
               <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  Resumen: {Object.values(asistencias).filter(a => a.asistio).length} de {trabajadores.length} asistieron
-                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Asistentes</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">
+                      {Object.values(asistencias).filter(a => a.asistio).length} de {trabajadores.length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Aprobados</p>
+                    <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                      {Object.values(asistencias).filter(a => a.aprobo).length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Promedio</p>
+                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                      {(() => {
+                        const notas = Object.values(asistencias)
+                          .filter(a => a.asistio && a.nota !== undefined)
+                          .map(a => a.nota!);
+                        return notas.length > 0 
+                          ? (notas.reduce((sum, n) => sum + n, 0) / notas.length).toFixed(1)
+                          : '-';
+                      })()}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 

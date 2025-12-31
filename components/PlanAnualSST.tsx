@@ -84,7 +84,8 @@ export default function PlanAnualSSTComponent() {
     fecha_inicio_real: '',
     fecha_fin_real: '',
     porcentaje_avance: undefined,
-  });
+    presupuesto_ejecutado: undefined,
+  } as any);
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -267,7 +268,8 @@ export default function PlanAnualSSTComponent() {
       fecha_inicio_real: '',
       fecha_fin_real: '',
       porcentaje_avance: undefined,
-    });
+      presupuesto_ejecutado: undefined,
+    } as any);
     setFormErrors({});
     setIsActividadModalOpen(true);
   };
@@ -402,6 +404,11 @@ export default function PlanAnualSSTComponent() {
       };
     });
 
+    // Calcular presupuesto ejecutado
+    const presupuestoEjecutado = actividades.reduce((sum, a) => 
+      sum + ((a as any).presupuesto_ejecutado || 0), 0
+    );
+
     return {
       total,
       completadas,
@@ -409,8 +416,13 @@ export default function PlanAnualSSTComponent() {
       enProceso: actividades.filter(a => a.estado === 'En proceso').length,
       porcentaje,
       actividadesPorMes,
+      presupuestoEjecutado,
+      presupuestoTotal: planActual?.presupuesto_total || 0,
+      porcentajePresupuesto: planActual?.presupuesto_total 
+        ? Math.round((presupuestoEjecutado / planActual.presupuesto_total) * 100)
+        : 0,
     };
-  }, [actividades]);
+  }, [actividades, planActual]);
 
   // Filtrar actividades
   const actividadesFiltradas = useMemo(() => {
@@ -506,6 +518,22 @@ export default function PlanAnualSSTComponent() {
                     ? `S/ ${planActual.presupuesto_total.toLocaleString('es-PE')}`
                     : 'No definido'}
                 </p>
+                {planActual.presupuesto_total && (
+                  <>
+                    <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                      Ejecutado: S/ {indicadores.presupuestoEjecutado.toLocaleString('es-PE')}
+                    </p>
+                    <div className="mt-2 w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all"
+                        style={{ width: `${Math.min(indicadores.porcentajePresupuesto, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      {indicadores.porcentajePresupuesto}% ejecutado
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-100 dark:border-green-800">
@@ -962,6 +990,23 @@ export default function PlanAnualSSTComponent() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Presupuesto Ejecutado (S/)
+                </label>
+                <input
+                  type="number"
+                  value={(actividadFormData as any).presupuesto_ejecutado || ''}
+                  onChange={(e) => setActividadFormData({ 
+                    ...actividadFormData, 
+                    presupuesto_ejecutado: e.target.value ? parseFloat(e.target.value) : undefined 
+                  } as any)}
+                  min="0"
+                  step="0.01"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
               </div>
             </div>
 
