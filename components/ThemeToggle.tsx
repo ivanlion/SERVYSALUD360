@@ -11,6 +11,7 @@
 import React from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Sun, Moon, Monitor } from 'lucide-react';
+import { logger } from '../utils/logger';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -41,12 +42,8 @@ export function ThemeToggle() {
         <button
           key={t.value}
           onClick={() => {
-            console.log('[ThemeToggle] Click en tema:', t.value);
+            logger.debug(`[ThemeToggle] Cambiando tema a: ${t.value}`, { theme: t.value });
             setTheme(t.value);
-            // Verificar después de un momento
-            setTimeout(() => {
-              console.log('[ThemeToggle] Tema aplicado. HTML classes:', document.documentElement.className);
-            }, 100);
           }}
           className={`
             px-3 py-1.5 rounded-md transition-all duration-200

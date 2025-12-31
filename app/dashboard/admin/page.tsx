@@ -17,6 +17,7 @@ import { useNavigation } from '../../../contexts/NavigationContext';
 import { supabase } from '../../../lib/supabase';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { isSuperAdmin, isAdminUser } from '../../../utils/auth-helpers';
+import { logger } from '../../../utils/logger';
 
 export default function AdminPage() {
   const { setCurrentView } = useNavigation();
@@ -67,7 +68,9 @@ export default function AdminPage() {
           }
         }
       } catch (error) {
-        console.error('Error al verificar permisos de administrador:', error);
+        logger.error(error instanceof Error ? error : new Error('Error al verificar permisos de administrador'), {
+          context: 'AdminPage'
+        });
         router.push('/');
       } finally {
         setIsCheckingAdmin(false);

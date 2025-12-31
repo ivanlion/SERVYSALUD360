@@ -136,13 +136,16 @@ describe('Logger', () => {
     process.env.NODE_ENV = 'development';
     jest.resetModules();
     logger = require('../logger').logger;
-    const error = { message: 'Test error' } as Error;
+    // Crear un Error real sin stack trace
+    const error = new Error('Test error');
+    delete (error as any).stack; // Eliminar stack trace
     logger.error(error, { context: 'test' });
 
+    // El logger extrae el mensaje del error y lo pasa como string
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       '[ERROR]',
-      'Test error',
-      undefined,
+      'Test error', // errorMessage extraído
+      undefined, // errorStack (eliminado)
       { context: 'test' }
     );
   });

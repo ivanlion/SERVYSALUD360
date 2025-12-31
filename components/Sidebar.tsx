@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -28,7 +28,7 @@ import {
   History
 } from 'lucide-react';
 import { useNavigation } from '../contexts/NavigationContext';
-import { supabase } from '../lib/supabase';
+import { useUser } from '../contexts/UserContext';
 import { logger } from '../utils/logger';
 import { isSuperAdmin, isAdminUser, getEffectivePermission } from '../utils/auth-helpers';
 
@@ -118,105 +118,55 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [userPermissions, setUserPermissions] = useState<{
-    trabajoModificado?: 'none' | 'read' | 'write';
-    vigilanciaMedica?: 'none' | 'read' | 'write';
-    seguimientoTrabajadores?: 'none' | 'read' | 'write';
-    seguridadHigiene?: 'none' | 'read' | 'write';
-  }>({});
   const { currentView, setCurrentView, isSidebarCollapsed } = useNavigation();
-
-  // Obtener el rol y permisos del usuario actual
-  useEffect(() => {
-    const getUserRoleAndPermissions = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // Intentar obtener el rol y permisos desde la tabla profiles
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('rol, role, permissions')
-            .eq('id', user.id)
-            .single();
-          
-          if (profile) {
-            const role = profile.rol || profile.role || null;
-            setUserRole(role);
-            
-            // Obtener permisos del JSONB usando helper que considera Super Admin
-            if (profile.permissions && typeof profile.permissions === 'object') {
-              setUserPermissions({
-                trabajoModificado: getEffectivePermission(
-                  user.email,
-                  role || undefined,
-                  profile.permissions.trabajo_modificado || profile.permissions.trabajoModificado
-                ),
-                vigilanciaMedica: getEffectivePermission(
-                  user.email,
-                  role || undefined,
-                  profile.permissions.vigilancia_medica || profile.permissions.vigilanciaMedica
-                ),
-                seguimientoTrabajadores: getEffectivePermission(
-                  user.email,
-                  role || undefined,
-                  profile.permissions.seguimiento_trabajadores || profile.permissions.seguimientoTrabajadores
-                ),
-                seguridadHigiene: getEffectivePermission(
-                  user.email,
-                  role || undefined,
-                  profile.permissions.seguridad_higiene || profile.permissions.seguridadHigiene
-                ),
-              });
-            } else {
-              // Si no hay permisos, usar helper para determinar según rol
-              const defaultPermission = isSuperAdmin(user.email) || isAdminUser(user.email, role || undefined) 
-                ? 'write' 
-                : 'none';
-              setUserPermissions({
-                trabajoModificado: defaultPermission,
-                vigilanciaMedica: defaultPermission,
-                seguimientoTrabajadores: defaultPermission,
-                seguridadHigiene: defaultPermission,
-              });
-            }
-          } else {
-            // Si no hay perfil, obtener desde user_metadata
-            const role = user.user_metadata?.rol || user.user_metadata?.role || null;
-            setUserRole(role);
-            
-            // Si es Super Admin o Admin, dar permisos completos
-            const defaultPermission = isSuperAdmin(user.email) || isAdminUser(user.email, role || undefined) 
-              ? 'write' 
-              : 'none';
-            setUserPermissions({
-              trabajoModificado: defaultPermission,
-              vigilanciaMedica: defaultPermission,
-              seguimientoTrabajadores: defaultPermission,
-              seguridadHigiene: defaultPermission,
-            });
-          }
-        }
-      } catch (error) {
-        logger.error(error instanceof Error ? error : new Error('Error al obtener rol y permisos del usuario'), {
-          context: 'Sidebar'
-        });
-      }
-    };
-
-    getUserRoleAndPermissions();
-  }, []);
-
-  // Obtener email del usuario para verificar Super Admin
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   
-  useEffect(() => {
-    const getUserEmail = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUserEmail(user?.email || null);
+  // OPTIMIZACIÓN: Usar UserContext en lugar de hacer consultas duplicadas a Supabase
+  const { user, profile } = useUser();
+  
+  // Obtener email, rol y permisos desde el contexto (ya cargado)
+  const userEmail = user?.email || null;
+  const userRole = profile?.role || user?.user_metadata?.role || user?.user_metadata?.rol || null;
+  
+  // Calcular permisos desde el perfil del contexto
+  const userPermissions = useMemo(() => {
+    if (!profile?.permissions && !user?.user_metadata?.permissions) {
+      // Si no hay permisos, usar helper para determinar según rol
+      const defaultPermission = isSuperAdmin(userEmail) || isAdminUser(userEmail, userRole || undefined) 
+        ? 'write' 
+        : 'none';
+      return {
+        trabajoModificado: defaultPermission,
+        vigilanciaMedica: defaultPermission,
+        seguimientoTrabajadores: defaultPermission,
+        seguridadHigiene: defaultPermission,
+      };
+    }
+    
+    // Obtener permisos del JSONB usando helper que considera Super Admin
+    const permissions = profile?.permissions || user?.user_metadata?.permissions || {};
+    return {
+      trabajoModificado: getEffectivePermission(
+        userEmail,
+        userRole || undefined,
+        permissions.trabajo_modificado || permissions.trabajoModificado
+      ),
+      vigilanciaMedica: getEffectivePermission(
+        userEmail,
+        userRole || undefined,
+        permissions.vigilancia_medica || permissions.vigilanciaMedica
+      ),
+      seguimientoTrabajadores: getEffectivePermission(
+        userEmail,
+        userRole || undefined,
+        permissions.seguimiento_trabajadores || permissions.seguimientoTrabajadores
+      ),
+      seguridadHigiene: getEffectivePermission(
+        userEmail,
+        userRole || undefined,
+        permissions.seguridad_higiene || permissions.seguridadHigiene
+      ),
     };
-    getUserEmail();
-  }, []);
+  }, [profile, user, userEmail, userRole]);
 
   // Verificar si el usuario es administrador (incluye Super Admin)
   const isAdmin = isAdminUser(userEmail, userRole);

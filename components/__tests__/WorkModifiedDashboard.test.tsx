@@ -9,13 +9,23 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import WorkModifiedDashboard from '../WorkModifiedDashboard';
-import { CompanyProvider } from '../../contexts/CompanyContext';
-import { NotificationProvider } from '../../contexts/NotificationContext';
+import { CompanyProvider, useCompany } from '../../contexts/CompanyContext';
+import { NotificationProvider, useNotifications } from '../../contexts/NotificationContext';
 import { useWorkModifiedCases } from '../../hooks/useWorkModifiedCases';
+
+const mockUseCompany = useCompany as jest.MockedFunction<typeof useCompany>;
+const mockUseNotifications = useNotifications as jest.MockedFunction<typeof useNotifications>;
 
 // Mock de hooks y dependencias
 jest.mock('../../hooks/useWorkModifiedCases');
-jest.mock('../../contexts/CompanyContext');
+jest.mock('../../contexts/CompanyContext', () => ({
+  CompanyProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useCompany: jest.fn(),
+}));
+jest.mock('../../contexts/NotificationContext', () => ({
+  NotificationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useNotifications: jest.fn(),
+}));
 jest.mock('../../lib/supabase', () => ({
   supabase: {
     from: jest.fn(() => ({
@@ -103,20 +113,20 @@ describe('WorkModifiedDashboard', () => {
     jest.clearAllMocks();
     
     // Mock de CompanyContext
-    (require('../../contexts/CompanyContext').useCompany as jest.Mock) = jest.fn(() => ({
+    mockUseCompany.mockReturnValue({
       empresaActiva: { id: '1', nombre: 'Empresa Test' },
       empresas: [],
       isLoading: false,
       setEmpresaActiva: jest.fn(),
       refreshEmpresas: jest.fn(),
-    }));
+    });
 
     // Mock de NotificationContext
-    (require('../../contexts/NotificationContext').useNotifications as jest.Mock) = jest.fn(() => ({
+    mockUseNotifications.mockReturnValue({
       showSuccess: jest.fn(),
       showError: jest.fn(),
       showWarning: jest.fn(),
-    }));
+    });
 
     // Mock de useWorkModifiedCases
     mockUseWorkModifiedCases.mockReturnValue({
@@ -390,4 +400,5 @@ describe('WorkModifiedDashboard', () => {
     });
   });
 });
+
 

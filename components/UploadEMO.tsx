@@ -26,6 +26,100 @@ import { EMO_ANALYSIS_PROMPT } from '../lib/prompts/emo-analysis';
 import { validateSupabaseData, TrabajadorSchema, ExamenMedicoSchema } from '../lib/validations/supabase-schemas';
 
 // ============================================================================
+// UTILIDADES DE FECHA
+// ============================================================================
+
+/**
+ * Normaliza una fecha de diferentes formatos a YYYY-MM-DD (formato ISO para PostgreSQL)
+ * 
+ * Soporta:
+ * - DD-MM-YYYY (ej: "23-12-2025")
+ * - DD/MM/YYYY (ej: "23/12/2025")
+ * - YYYY-MM-DD (ej: "2025-12-23") - ya está en formato correcto
+ * - YYYY/MM/DD (ej: "2025/12/23")
+ * 
+ * @param dateString - Fecha en cualquier formato
+ * @returns Fecha en formato YYYY-MM-DD o null si no es válida
+ */
+const normalizeDateToISO = (dateString: string | undefined | null): string | null => {
+  if (!dateString || typeof dateString !== 'string') {
+    return null;
+  }
+
+  const trimmed = dateString.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  // Si ya está en formato YYYY-MM-DD, retornar directamente
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Intentar parsear diferentes formatos
+  let day: string, month: string, year: string;
+
+  // Formato DD-MM-YYYY o DD/MM/YYYY
+  const matchDDMMYYYY = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (matchDDMMYYYY) {
+    [, day, month, year] = matchDDMMYYYY;
+    // Validar que los valores sean razonables
+    const d = parseInt(day, 10);
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    
+    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1900 && y <= 2100) {
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+
+  // Formato YYYY/MM/DD
+  const matchYYYYMMDD = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (matchYYYYMMDD) {
+    [, year, month, day] = matchYYYYMMDD;
+    const d = parseInt(day, 10);
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    
+    if (d >= 1 && d <= 31 && m >= 1 && m <= 12 && y >= 1900 && y <= 2100) {
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+
+  // Si no coincide con ningún formato, intentar parsear con Date
+  try {
+    const date = new Date(trimmed);
+    if (!isNaN(date.getTime())) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  } catch {
+    // Ignorar errores de parsing
+  }
+
+  // Si no se pudo parsear, retornar null
+  logger.warn('[UploadEMO] No se pudo normalizar la fecha:', dateString);
+  return null;
+};
+
+/**
+ * Obtiene una fecha normalizada o usa la fecha actual como fallback
+ * 
+ * @param dateString - Fecha en cualquier formato
+ * @returns Fecha en formato YYYY-MM-DD
+ */
+const getNormalizedDateOrToday = (dateString: string | undefined | null): string => {
+  const normalized = normalizeDateToISO(dateString);
+  if (normalized) {
+    return normalized;
+  }
+  // Fallback a fecha actual en formato ISO
+  return new Date().toISOString().split('T')[0];
+};
+
+// ============================================================================
 // SCHEMAS DE VALIDACIÓN ZOD
 // ============================================================================
 
@@ -660,26 +754,68 @@ export default function UploadEMO() {
           }
         } else {
           logger.debug('[UploadEMO] Creando nuevo trabajador...');
+          
+          // OPTIMIZACIÓN: Validar datos antes de insertar
+          if (!csv.DNI || csv.DNI.trim() === '') {
+            throw new Error('El DNI es requerido para crear un trabajador');
+          }
+          
+          if (!empresaActiva?.id) {
+            throw new Error('No hay empresa seleccionada. Selecciona una empresa antes de guardar.');
+          }
+
+          // Preparar datos del trabajador
+          const trabajadorData = {
+            dni_ce_pas: csv.DNI.trim(),
+            apellidos_nombre: (csv.Nombre || '').trim() || 'Sin nombre',
+            empresa: empresaActiva.nombre || '',
+            empresa_id: empresaActiva.id,
+            fecha_registro: getNormalizedDateOrToday(csv.Fecha_EMO),
+          };
+
+          logger.debug('[UploadEMO] Datos del trabajador a insertar:', trabajadorData);
+
           // Crear nuevo trabajador
           const { data: nuevoTrabajador, error: errorTrabajador } = await supabase
             .from('registros_trabajadores')
-            .insert([{
-              dni_ce_pas: csv.DNI,
-              apellidos_nombre: csv.Nombre || '',
-              empresa: empresaActiva.nombre,
-              empresa_id: empresaActiva.id,
-              fecha_registro: csv.Fecha_EMO || new Date().toISOString().split('T')[0],
-            }])
+            .insert([trabajadorData])
             .select()
             .single();
 
           if (errorTrabajador) {
-            logger.error(new Error('Error al crear trabajador'), {
+            // OPTIMIZACIÓN: Mejor manejo de errores con más contexto
+            const errorMessage = errorTrabajador.message || 'Error desconocido';
+            const errorDetails = errorTrabajador.details || '';
+            const errorHint = errorTrabajador.hint || '';
+            const errorCode = errorTrabajador.code || '';
+
+            logger.error(new Error(`Error al crear trabajador: ${errorMessage}`), {
               context: 'saveExtractedData',
-              error: errorTrabajador.message,
-              dni: csv.DNI
+              error: errorMessage,
+              errorDetails,
+              errorHint,
+              errorCode,
+              dni: csv.DNI,
+              empresaId: empresaActiva.id,
+              trabajadorData
             });
-            throw new Error(`Error al crear trabajador: ${errorTrabajador.message}`);
+
+            // Mensaje de error más descriptivo para el usuario
+            let userFriendlyMessage = `Error al crear trabajador`;
+            
+            if (errorCode === '23505') { // Violación de unique constraint
+              userFriendlyMessage = `El trabajador con DNI ${csv.DNI} ya existe en esta empresa.`;
+            } else if (errorCode === '23503') { // Violación de foreign key
+              userFriendlyMessage = `Error de referencia: La empresa seleccionada no es válida.`;
+            } else if (errorMessage.includes('RLS') || errorMessage.includes('row-level security')) {
+              userFriendlyMessage = `Error de permisos: No tienes permiso para crear trabajadores. Contacta al administrador.`;
+            } else if (errorMessage.includes('does not exist')) {
+              userFriendlyMessage = `Error: La tabla de trabajadores no existe. Contacta al administrador.`;
+            } else {
+              userFriendlyMessage = `Error al crear trabajador: ${errorMessage}${errorDetails ? ` (${errorDetails})` : ''}`;
+            }
+
+            throw new Error(userFriendlyMessage);
           }
 
           if (!nuevoTrabajador) {
@@ -709,7 +845,7 @@ export default function UploadEMO() {
           const examenData: any = {
             trabajador_id: trabajadorId,
             empresa_id: empresaActiva.id,
-            fecha_examen: csv.Fecha_EMO || new Date().toISOString().split('T')[0],
+            fecha_examen: getNormalizedDateOrToday(csv.Fecha_EMO),
             tipo_examen: csv.Tipo_Examen || 'Anual',
             aptitud: csv.Aptitud_Final || 'ND',
             restriccion_lentes: csv.Restr_Lentes === 'SI' || csv.Restr_Lentes === 'Si' || csv.Restr_Lentes === 'si',
@@ -760,7 +896,7 @@ export default function UploadEMO() {
         try {
           logger.debug('[UploadEMO] Creando caso por restricciones detectadas...');
           const casoData: any = {
-            fecha: csv.Fecha_EMO || new Date().toISOString().split('T')[0],
+            fecha: getNormalizedDateOrToday(csv.Fecha_EMO),
             trabajadorNombre: csv.Nombre || '',
             dni: csv.DNI || '',
             empresa: empresaActiva.nombre,
@@ -814,12 +950,25 @@ export default function UploadEMO() {
       }, 3000);
 
     } catch (err: any) {
-      logger.error(err instanceof Error ? err : new Error('Error al guardar datos'), {
-        context: 'saveExtractedData'
+      // OPTIMIZACIÓN: Mejor logging de errores con más contexto
+      const errorMessage = err.message || 'Error al guardar los datos';
+      const errorDetails = err.details || err.error?.details || '';
+      const errorCode = err.code || err.error?.code || '';
+      
+      logger.error(err instanceof Error ? err : new Error(errorMessage), {
+        context: 'saveExtractedData',
+        errorMessage,
+        errorDetails,
+        errorCode,
+        dni: extractedData?.csv_parseado?.DNI,
+        empresaId: empresaActiva?.id,
+        empresaNombre: empresaActiva?.nombre,
+        stack: err.stack
       });
-      const errorMsg = err.message || 'Error al guardar los datos';
-      setError(errorMsg);
-      showError(errorMsg);
+      
+      // Mostrar mensaje de error más descriptivo al usuario
+      setError(errorMessage);
+      showError(errorMessage);
       setSaveStatus('error');
     } finally {
       setIsSaving(false);

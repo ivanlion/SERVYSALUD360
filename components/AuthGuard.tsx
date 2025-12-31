@@ -29,7 +29,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
     const checkAuth = async () => {
       try {
-        // Timeout de 10 segundos para evitar que se quede colgado
+        // Timeout configurable (por defecto 10 segundos)
+        const AUTH_TIMEOUT = process.env.NEXT_PUBLIC_AUTH_TIMEOUT 
+          ? parseInt(process.env.NEXT_PUBLIC_AUTH_TIMEOUT, 10) 
+          : 10000;
+        
+        // Timeout para evitar que se quede colgado
         timeoutId = setTimeout(() => {
           if (isMounted) {
             logger.warn('[AuthGuard] Timeout: La verificación tardó más de 10 segundos, usando fallback');
@@ -49,9 +54,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
               }
             });
           }
-        }, 10000);
+        }, AUTH_TIMEOUT);
 
-        // Intentar obtener la sesión
+        // OPTIMIZACIÓN: Intentar obtener la sesión (más rápido que getUser)
         const { data: { session }, error } = await supabase.auth.getSession();
         
         clearTimeout(timeoutId);

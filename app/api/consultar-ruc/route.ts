@@ -1,6 +1,7 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '../../../utils/logger';
 
 /**
  * API Route para consultar RUC en SUNAT
@@ -47,7 +48,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[consultar-ruc] Consultando RUC:', rucLimpio);
+    logger.debug('Consultando RUC', {
+      context: 'consultar-ruc',
+      ruc: rucLimpio
+    });
 
     // Opción 1: Intentar con apisperu.com (API oficial con token)
     const apisPeruToken = process.env.APIS_PERU_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6Imxpb25mb25zZWNhQGdtYWlsLmNvbSJ9.dNJEC1uVdJNkhO3pahIMpl9hzm56Ufrn_utFUHpAZl4';
@@ -55,7 +59,10 @@ export async function POST(request: NextRequest) {
     try {
       const apiUrl = `https://dniruc.apisperu.com/api/v1/ruc/${rucLimpio}?token=${apisPeruToken}`;
       
-      console.log('[consultar-ruc] Intentando con apisperu.com...');
+      logger.debug('Intentando con apisperu.com', {
+        context: 'consultar-ruc',
+        ruc: rucLimpio
+      });
       
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -68,7 +75,11 @@ export async function POST(request: NextRequest) {
       if (response.ok) {
         const data = await response.json();
         
-        console.log('[consultar-ruc] Respuesta de apisperu.com:', JSON.stringify(data, null, 2));
+        logger.debug('Respuesta de apisperu.com', {
+          context: 'consultar-ruc',
+          ruc: rucLimpio,
+          hasData: !!(data && (data.razonSocial || data.razon_social || data.nombre || data.name))
+        });
         
         if (data && (data.razonSocial || data.razon_social || data.nombre || data.name)) {
           // Construir actividades económicas si están disponibles
@@ -98,7 +109,11 @@ export async function POST(request: NextRequest) {
             actividadesEconomicas: Object.keys(actividades).length > 0 ? actividades : undefined,
           };
 
-          console.log('[consultar-ruc] ✅ Datos obtenidos de apisperu.com:', empresaData);
+          logger.debug('Datos obtenidos de apisperu.com', {
+            context: 'consultar-ruc',
+            ruc: rucLimpio,
+            razonSocial: empresaData.razonSocial
+          });
           
           return NextResponse.json({
             success: true,
@@ -106,10 +121,18 @@ export async function POST(request: NextRequest) {
           });
         }
       } else {
-        console.warn('[consultar-ruc] apisperu.com respondió con status:', response.status);
+        logger.warn('apisperu.com respondió con error', {
+          context: 'consultar-ruc',
+          ruc: rucLimpio,
+          status: response.status
+        });
       }
     } catch (apiError: any) {
-      console.warn('[consultar-ruc] Error con apisperu.com:', apiError.message);
+      logger.warn('Error con apisperu.com', {
+        context: 'consultar-ruc',
+        ruc: rucLimpio,
+        error: apiError.message
+      });
     }
 
     // Opción 2: Intentar con apis.net.pe como fallback
@@ -139,7 +162,11 @@ export async function POST(request: NextRequest) {
             email: data.email || '',
           };
 
-          console.log('[consultar-ruc] ✅ Datos obtenidos de apis.net.pe (fallback):', empresaData);
+          logger.debug('Datos obtenidos de apis.net.pe (fallback)', {
+            context: 'consultar-ruc',
+            ruc: rucLimpio,
+            razonSocial: empresaData.razonSocial
+          });
           
           return NextResponse.json({
             success: true,
@@ -148,11 +175,18 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (apiError2: any) {
-      console.warn('[consultar-ruc] Error con apis.net.pe:', apiError2.message);
+      logger.warn('Error con apis.net.pe', {
+        context: 'consultar-ruc',
+        ruc: rucLimpio,
+        error: apiError2.message
+      });
     }
 
     // Si no se pudo obtener de ninguna fuente
-    console.log('[consultar-ruc] ⚠️ No se pudo obtener datos para RUC:', rucLimpio);
+    logger.warn('No se pudo obtener datos para RUC', {
+      context: 'consultar-ruc',
+      ruc: rucLimpio
+    });
     return NextResponse.json({
       success: false,
       message: `No se encontró información para el RUC ${rucLimpio}. Por favor, complete los datos manualmente.`,
@@ -164,7 +198,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('[consultar-ruc] Error:', error);
+    logger.error(error instanceof Error ? error : new Error('Error al consultar RUC'), {
+      context: 'consultar-ruc',
+      error: error.message
+    });
     return NextResponse.json(
       { 
         success: false, 

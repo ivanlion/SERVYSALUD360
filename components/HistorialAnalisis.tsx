@@ -44,7 +44,8 @@ interface AnalisisHistorial {
   archivo_nombre: string;
   archivo_url: string | null;
   fecha_analisis: string;
-  resultado_analisis: {
+  // OPTIMIZACIÓN: resultado_analisis es opcional porque se carga bajo demanda
+  resultado_analisis?: {
     csv_parseado?: any;
     resumen_clinico?: string;
     metadata?: any;
@@ -77,13 +78,23 @@ export default function HistorialAnalisis({ empresaId }: HistorialAnalisisProps)
   const targetEmpresaId = empresaId || empresaActiva?.id;
 
   // Función para cargar historial
+  // OPTIMIZACIÓN: Solo traer campos necesarios para la lista, no resultado_analisis completo
   const loadHistorial = useCallback(async (page: number = 1) => {
     try {
       let query = supabase
         .from('analisis_emo_historial')
         .select(`
-          *,
-          empresas (
+          id,
+          empresa_id,
+          trabajador_dni,
+          trabajador_nombre,
+          archivo_nombre,
+          archivo_url,
+          fecha_analisis,
+          usuario_id,
+          created_at,
+          resultado_analisis->resumen_clinico,
+          empresas!inner (
             nombre
           )
         `, { count: 'exact' })
@@ -114,8 +125,27 @@ export default function HistorialAnalisis({ empresaId }: HistorialAnalisisProps)
         throw error;
       }
 
+      // OPTIMIZACIÓN: Mapear datos para incluir resultado_analisis parcial y empresas correctamente
+      const mappedData: AnalisisHistorial[] = (data || []).map((item: any) => ({
+        id: item.id,
+        empresa_id: item.empresa_id,
+        trabajador_dni: item.trabajador_dni,
+        trabajador_nombre: item.trabajador_nombre,
+        archivo_nombre: item.archivo_nombre,
+        archivo_url: item.archivo_url,
+        fecha_analisis: item.fecha_analisis,
+        usuario_id: item.usuario_id,
+        created_at: item.created_at,
+        resultado_analisis: item.resumen_clinico ? {
+          resumen_clinico: item.resumen_clinico
+        } : undefined,
+        empresas: Array.isArray(item.empresas) && item.empresas.length > 0 
+          ? { nombre: item.empresas[0].nombre || '' }
+          : undefined
+      }));
+
       return {
-        data: (data || []) as AnalisisHistorial[],
+        data: mappedData,
         totalCount: count || 0
       };
     } catch (err: any) {
@@ -155,7 +185,8 @@ export default function HistorialAnalisis({ empresaId }: HistorialAnalisisProps)
   }, [showWarning]);
 
   // Comparar análisis seleccionados
-  const handleCompare = useCallback(() => {
+  // OPTIMIZACIÓN: Cargar resultado_analisis completo solo cuando se necesita comparar
+  const handleCompare = useCallback(async () => {
     if (selectedAnalysis.length !== 2) {
       showWarning('Debes seleccionar exactamente 2 análisis para comparar');
       return;
@@ -169,15 +200,81 @@ export default function HistorialAnalisis({ empresaId }: HistorialAnalisisProps)
       return;
     }
 
-    setCompareData([analysis1, analysis2]);
-    setShowCompareModal(true);
+    try {
+      // Cargar análisis completos si no los tienen
+      const idsToLoad = [analysis1, analysis2]
+        .filter(a => !a.resultado_analisis?.csv_parseado)
+        .map(a => a.id);
+
+      if (idsToLoad.length > 0) {
+        const { data: fullAnalyses, error } = await supabase
+          .from('analisis_emo_historial')
+          .select('id, resultado_analisis')
+          .in('id', idsToLoad);
+
+        if (error) {
+          throw error;
+        }
+
+        // Combinar datos
+        const analysis1Full = fullAnalyses?.find(a => a.id === analysis1.id);
+        const analysis2Full = fullAnalyses?.find(a => a.id === analysis2.id);
+
+        if (analysis1Full) {
+          analysis1.resultado_analisis = analysis1Full.resultado_analisis || analysis1.resultado_analisis;
+        }
+        if (analysis2Full) {
+          analysis2.resultado_analisis = analysis2Full.resultado_analisis || analysis2.resultado_analisis;
+        }
+      }
+
+      setCompareData([analysis1, analysis2]);
+      setShowCompareModal(true);
+    } catch (err: any) {
+      logger.error(err instanceof Error ? err : new Error('Error al cargar análisis para comparar'), {
+        context: 'handleCompare'
+      });
+      showError(`Error al cargar análisis: ${err.message || 'Error desconocido'}`);
+    }
   }, [selectedAnalysis, historial, showWarning, showError]);
 
   // Ver análisis individual
-  const handleViewAnalysis = useCallback((item: AnalisisHistorial) => {
-    setCompareData([item]);
-    setShowCompareModal(true);
-  }, []);
+  // OPTIMIZACIÓN: Cargar resultado_analisis completo solo cuando se necesita ver
+  const handleViewAnalysis = useCallback(async (item: AnalisisHistorial) => {
+    try {
+      // Si el item ya tiene resultado_analisis completo, usarlo directamente
+      if (item.resultado_analisis?.csv_parseado) {
+        setCompareData([item]);
+        setShowCompareModal(true);
+        return;
+      }
+
+      // Si no, cargar el análisis completo desde Supabase
+      const { data: fullAnalysis, error } = await supabase
+        .from('analisis_emo_historial')
+        .select('id, resultado_analisis')
+        .eq('id', item.id)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      // Combinar datos del item con el análisis completo
+      const itemWithFullAnalysis: AnalisisHistorial = {
+        ...item,
+        resultado_analisis: fullAnalysis?.resultado_analisis || item.resultado_analisis,
+      };
+
+      setCompareData([itemWithFullAnalysis]);
+      setShowCompareModal(true);
+    } catch (err: any) {
+      logger.error(err instanceof Error ? err : new Error('Error al cargar análisis completo'), {
+        context: 'handleViewAnalysis'
+      });
+      showError(`Error al cargar análisis: ${err.message || 'Error desconocido'}`);
+    }
+  }, [showError]);
 
   // Descargar archivo
   const handleDownload = useCallback(async (item: AnalisisHistorial) => {

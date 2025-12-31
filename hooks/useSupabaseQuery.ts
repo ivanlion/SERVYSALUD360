@@ -49,9 +49,23 @@ export function useSupabaseQuery<TData = any>(
     enabled,
     staleTime,
     gcTime,
-    retry: 1,
+    retry: (failureCount, error) => {
+      // No reintentar en errores 4xx (client errors)
+      if (error instanceof Error) {
+        const errorMessage = error.message.toLowerCase();
+        if (errorMessage.includes('400') || 
+            errorMessage.includes('401') || 
+            errorMessage.includes('403') || 
+            errorMessage.includes('404')) {
+          return false;
+        }
+      }
+      // Reintentar hasta 3 veces con exponential backoff
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s, max 30s
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    refetchOnReconnect: true, // Cambiado a true para datos críticos
   });
 }
 

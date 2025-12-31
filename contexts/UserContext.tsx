@@ -37,26 +37,43 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Cargar perfil del usuario
+  // OPTIMIZACIÓN: Usar getSession primero (más rápido) antes de getUser
   const loadProfile = useCallback(async () => {
     try {
       setIsLoading(true);
       
-      // Obtener usuario autenticado
-      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+      // OPTIMIZACIÓN: Intentar getSession primero (más rápido que getUser)
+      let currentUser: User | null = null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          currentUser = session.user;
+        }
+      } catch (sessionError: any) {
+        logger.warn('[UserContext] Error en getSession, intentando getUser', {
+          context: 'UserContext',
+          error: sessionError.message
+        });
+      }
       
-      if (userError || !currentUser) {
-        setUser(null);
-        setProfile(null);
-        setIsLoading(false);
-        return;
+      // Fallback a getUser si getSession no funcionó
+      if (!currentUser) {
+        const { data: { user: userData }, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData) {
+          setUser(null);
+          setProfile(null);
+          setIsLoading(false);
+          return;
+        }
+        currentUser = userData;
       }
 
       setUser(currentUser);
 
-      // Obtener perfil desde la tabla profiles
+      // OPTIMIZACIÓN: Obtener perfil desde la tabla profiles (solo campos necesarios)
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, email, full_name, role, permissions, created_at')
+        .select('id, email, full_name, role, permissions, created_at') // Solo campos necesarios
         .eq('id', currentUser.id)
         .single();
 

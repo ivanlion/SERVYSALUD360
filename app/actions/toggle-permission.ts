@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
+import { logger } from '../../utils/logger';
 
 /**
  * Server Action para actualizar permisos de un usuario
@@ -64,7 +65,11 @@ export async function togglePermission(
       .single();
 
     if (fetchError) {
-      console.error('Error al obtener perfil:', fetchError);
+      logger.error(fetchError instanceof Error ? fetchError : new Error('Error al obtener perfil'), {
+        context: 'togglePermission',
+        error: fetchError.message,
+        userId
+      });
       return {
         success: false,
         message: 'Error al obtener el perfil del usuario',
@@ -87,7 +92,12 @@ export async function togglePermission(
       .eq('id', userId);
 
     if (updateError) {
-      console.error('Error al actualizar permisos:', updateError);
+      logger.error(updateError instanceof Error ? updateError : new Error('Error al actualizar permisos'), {
+        context: 'togglePermission',
+        error: updateError.message,
+        userId,
+        module
+      });
       return {
         success: false,
         message: updateError.message || 'Error al actualizar los permisos',
@@ -102,7 +112,10 @@ export async function togglePermission(
       message: `Permiso ${isGranted ? 'otorgado' : 'revocado'} exitosamente`,
     };
   } catch (error: any) {
-    console.error('Error inesperado al actualizar permisos:', error);
+    logger.error(error instanceof Error ? error : new Error('Error inesperado al actualizar permisos'), {
+      context: 'togglePermission',
+      error: error.message
+    });
     return {
       success: false,
       message: error.message || 'Error inesperado al actualizar los permisos',

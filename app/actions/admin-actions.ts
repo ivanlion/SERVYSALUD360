@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createServerClient, createAdminClient } from '../../lib/supabase-server';
 import { isSuperAdmin, isAdminUser } from '../../utils/auth-helpers';
+import { logger } from '../../utils/logger';
 
 /**
  * Verifica si el usuario actual es administrador usando el patrón de Doble Cliente
@@ -17,7 +18,9 @@ async function verifyAdmin() {
     // ============================================
     // PASO 1: Cliente de Verificación (Para saber quién soy)
     // ============================================
-    console.log('🔍 [verifyAdmin] Paso 1: Creando cliente de verificación...');
+    logger.debug('Paso 1: Creando cliente de verificación', {
+      context: 'verifyAdmin'
+    });
     
     const supabaseAuth = await createServerClient();
     
@@ -25,8 +28,10 @@ async function verifyAdmin() {
     const { data: { user }, error: userError } = await supabaseAuth.auth.getUser();
 
     if (userError || !user) {
-      console.error('❌ [verifyAdmin] Usuario no autenticado:', userError?.message || 'No se encontró usuario');
-      console.error('❌ [verifyAdmin] Error completo:', userError);
+      logger.error(userError instanceof Error ? userError : new Error('Usuario no autenticado'), {
+        context: 'verifyAdmin',
+        error: userError?.message || 'No se encontró usuario'
+      });
       return {
         isAdmin: false,
         userId: null,
@@ -34,16 +39,18 @@ async function verifyAdmin() {
       };
     }
 
-    console.log('✅ [verifyAdmin] Usuario encontrado:', { 
-      id: user.id, 
-      email: user.email,
-      user_metadata: user.user_metadata 
+    logger.debug('Usuario encontrado', {
+      context: 'verifyAdmin',
+      userId: user.id,
+      email: user.email
     });
 
     // ============================================
     // PASO 2: Cliente de Ejecución (Para consultar profiles)
     // ============================================
-    console.log('🔍 [verifyAdmin] Paso 2: Creando cliente de ejecución...');
+    logger.debug('Paso 2: Creando cliente de ejecución', {
+      context: 'verifyAdmin'
+    });
     
     const supabaseAdmin = createAdminClient();
 
@@ -55,19 +62,27 @@ async function verifyAdmin() {
       .single();
 
     // Log de depuración completo
-    console.log('🔍 [verifyAdmin] Admin Check - Perfil encontrado:', {
-      profile: currentUserProfile,
+    logger.debug('Admin Check - Perfil encontrado', {
+      context: 'verifyAdmin',
       profileError: profileError?.message,
       profileErrorCode: profileError?.code,
       userId: user.id,
     });
 
     if (profileError) {
-      console.warn('⚠️ [verifyAdmin] Error al obtener perfil:', profileError.message);
+      logger.warn('Error al obtener perfil', {
+        context: 'verifyAdmin',
+        error: profileError.message,
+        userId: user.id
+      });
       
       // Si no hay perfil, verificar en user_metadata
       const role = user.user_metadata?.rol || user.user_metadata?.role || '';
-      console.log('🔍 [verifyAdmin] Rol desde user_metadata:', role);
+      logger.debug('Rol desde user_metadata', {
+        context: 'verifyAdmin',
+        role,
+        userId: user.id
+      });
       
       // Verificar múltiples variantes del rol de administrador (case-insensitive)
       const roleLower = role?.toLowerCase() || '';
@@ -76,7 +91,13 @@ async function verifyAdmin() {
                      role === 'Admin' ||
                      roleLower === 'administrador';
       
-      console.log('🔍 [verifyAdmin] Es admin?', isAdmin, '(rol:', role, ', roleLower:', roleLower, ')');
+      logger.debug('Verificación de admin', {
+        context: 'verifyAdmin',
+        isAdmin,
+        role,
+        roleLower,
+        userId: user.id
+      });
       
       return {
         isAdmin,
@@ -87,8 +108,11 @@ async function verifyAdmin() {
 
     // Obtener el rol del perfil
     const role = currentUserProfile?.rol || currentUserProfile?.role || '';
-    console.log('🔍 [verifyAdmin] Rol desde profiles:', role);
-    console.log('🔍 [verifyAdmin] Perfil completo:', currentUserProfile);
+    logger.debug('Rol desde profiles', {
+      context: 'verifyAdmin',
+      role,
+      userId: user.id
+    });
     
     // Verificar múltiples variantes del rol de administrador (case-insensitive)
     const roleLower = role?.toLowerCase() || '';
@@ -97,7 +121,13 @@ async function verifyAdmin() {
                    role === 'Admin' ||
                    roleLower === 'administrador';
     
-    console.log('🔍 [verifyAdmin] Es admin?', isAdmin, '(rol:', role, ', rolLower:', roleLower, ')');
+    logger.debug('Verificación de admin', {
+      context: 'verifyAdmin',
+      isAdmin,
+      role,
+      roleLower,
+      userId: user.id
+    });
 
     return {
       isAdmin,
@@ -105,8 +135,11 @@ async function verifyAdmin() {
       error: null,
     };
   } catch (error: any) {
-    console.error('❌ [verifyAdmin] Error al verificar admin:', error);
-    console.error('❌ [verifyAdmin] Stack trace:', error.stack);
+    logger.error(error instanceof Error ? error : new Error('Error al verificar admin'), {
+      context: 'verifyAdmin',
+      error: error.message,
+      stack: error.stack
+    });
     return {
       isAdmin: false,
       userId: null,
@@ -129,7 +162,9 @@ export async function updateUser(formData: FormData) {
     // ============================================
     // PASO 1: Cliente de Verificación (Para saber quién soy)
     // ============================================
-    console.log('🔍 [updateUser] Paso 1: Verificando permisos...');
+    logger.debug('Paso 1: Verificando permisos', {
+      context: 'updateUser'
+    });
     
     const supabaseAuth = await createServerClient();
     
@@ -139,10 +174,15 @@ export async function updateUser(formData: FormData) {
     if (userError || !user) {
       // Verificar si es el error específico "Auth session missing"
       if (userError?.message?.includes('Auth session missing') || userError?.message?.includes('session missing')) {
-        console.error('❌ [updateUser] Auth session missing - Las cookies no están disponibles');
-        console.error('❌ [updateUser] Asegúrate de que el middleware esté ejecutándose correctamente');
+        logger.error(userError instanceof Error ? userError : new Error('Auth session missing'), {
+          context: 'updateUser',
+          error: 'Las cookies no están disponibles. Asegúrate de que el middleware esté ejecutándose correctamente'
+        });
       } else {
-        console.error('❌ [updateUser] Usuario no autenticado:', userError?.message);
+        logger.error(userError instanceof Error ? userError : new Error('Usuario no autenticado'), {
+          context: 'updateUser',
+          error: userError?.message
+        });
       }
       return {
         success: false,
@@ -150,7 +190,11 @@ export async function updateUser(formData: FormData) {
       };
     }
 
-    console.log('✅ [updateUser] Usuario identificado:', { id: user.id, email: user.email });
+    logger.debug('Usuario identificado', {
+      context: 'updateUser',
+      userId: user.id,
+      email: user.email
+    });
 
     // Verificar que el usuario actual sea administrador (incluye Super Admin)
     const supabaseAdmin = createAdminClient();
@@ -169,11 +213,12 @@ export async function updateUser(formData: FormData) {
     const userIsAdmin = isAdminUser(user.email, role);
     const userIsSuperAdmin = isSuperAdmin(user.email);
 
-    console.log('🔍 [updateUser] Verificación de admin:', { 
-      email: user.email, 
-      role, 
+    logger.debug('Verificación de admin', {
+      context: 'updateUser',
+      email: user.email,
+      role,
       userIsSuperAdmin,
-      userIsAdmin 
+      userIsAdmin
     });
 
     if (!userIsAdmin) {
@@ -186,7 +231,9 @@ export async function updateUser(formData: FormData) {
     // ============================================
     // PASO 2: Cliente de Ejecución (Para hacer el trabajo sucio)
     // ============================================
-    console.log('🔍 [updateUser] Paso 2: Ejecutando actualización...');
+    logger.debug('Paso 2: Ejecutando actualización', {
+      context: 'updateUser'
+    });
 
     // Extraer datos del formulario
     const userId = formData.get('userId') as string;
@@ -210,7 +257,11 @@ export async function updateUser(formData: FormData) {
       .eq('id', userId);
 
     if (updateError) {
-      console.error('❌ [updateUser] Error al actualizar usuario:', updateError);
+      logger.error(updateError instanceof Error ? updateError : new Error('Error al actualizar usuario'), {
+        context: 'updateUser',
+        error: updateError.message,
+        userId
+      });
       return {
         success: false,
         message: updateError.message || 'Error al actualizar el usuario',
@@ -230,21 +281,32 @@ export async function updateUser(formData: FormData) {
     );
 
     if (metadataError) {
-      console.warn('⚠️ [updateUser] No se pudo actualizar user_metadata:', metadataError.message);
+      logger.warn('No se pudo actualizar user_metadata', {
+        context: 'updateUser',
+        error: metadataError.message,
+        userId
+      });
       // No fallar si solo falla metadata, el perfil ya se actualizó
     }
 
     // Revalidar la ruta para refrescar la tabla
     revalidatePath('/dashboard/admin');
 
-    console.log('✅ [updateUser] Usuario actualizado exitosamente:', nombre);
+    logger.debug('Usuario actualizado exitosamente', {
+      context: 'updateUser',
+      nombre,
+      userId
+    });
 
     return {
       success: true,
       message: `Usuario ${nombre} actualizado exitosamente`,
     };
   } catch (error: any) {
-    console.error('❌ [updateUser] Error inesperado:', error);
+    logger.error(error instanceof Error ? error : new Error('Error inesperado al actualizar usuario'), {
+      context: 'updateUser',
+      error: error.message
+    });
     return {
       success: false,
       message: error.message || 'Error inesperado al actualizar el usuario',
@@ -266,7 +328,9 @@ export async function deleteUser(userId: string) {
     // ============================================
     // PASO 1: Cliente de Verificación (Para saber quién soy)
     // ============================================
-    console.log('🔍 [deleteUser] Paso 1: Verificando permisos...');
+    logger.debug('Paso 1: Verificando permisos', {
+      context: 'deleteUser'
+    });
     
     const supabaseAuth = await createServerClient();
     
@@ -276,10 +340,15 @@ export async function deleteUser(userId: string) {
     if (userError || !user) {
       // Verificar si es el error específico "Auth session missing"
       if (userError?.message?.includes('Auth session missing') || userError?.message?.includes('session missing')) {
-        console.error('❌ [deleteUser] Auth session missing - Las cookies no están disponibles');
-        console.error('❌ [deleteUser] Asegúrate de que el middleware esté ejecutándose correctamente');
+        logger.error(userError instanceof Error ? userError : new Error('Auth session missing'), {
+          context: 'deleteUser',
+          error: 'Las cookies no están disponibles. Asegúrate de que el middleware esté ejecutándose correctamente'
+        });
       } else {
-        console.error('❌ [deleteUser] Usuario no autenticado:', userError?.message);
+        logger.error(userError instanceof Error ? userError : new Error('Usuario no autenticado'), {
+          context: 'deleteUser',
+          error: userError?.message
+        });
       }
       return {
         success: false,
@@ -287,7 +356,11 @@ export async function deleteUser(userId: string) {
       };
     }
 
-    console.log('✅ [deleteUser] Usuario identificado:', { id: user.id, email: user.email });
+    logger.debug('Usuario identificado', {
+      context: 'deleteUser',
+      userId: user.id,
+      email: user.email
+    });
 
     // Prevenir auto-eliminación
     if (user.id === userId) {
@@ -314,11 +387,12 @@ export async function deleteUser(userId: string) {
     const userIsAdmin = isAdminUser(user.email, role);
     const userIsSuperAdmin = isSuperAdmin(user.email);
 
-    console.log('🔍 [deleteUser] Verificación de admin:', { 
-      email: user.email, 
-      role, 
+    logger.debug('Verificación de admin', {
+      context: 'deleteUser',
+      email: user.email,
+      role,
       userIsSuperAdmin,
-      userIsAdmin 
+      userIsAdmin
     });
 
     if (!userIsAdmin) {
@@ -338,7 +412,10 @@ export async function deleteUser(userId: string) {
     // ============================================
     // PASO 2: Cliente de Ejecución (Para hacer el trabajo sucio)
     // ============================================
-    console.log('🔍 [deleteUser] Paso 2: Ejecutando eliminación...');
+    logger.debug('Paso 2: Ejecutando eliminación', {
+      context: 'deleteUser',
+      targetUserId: userId
+    });
 
     // Obtener información del usuario antes de eliminar (para el mensaje)
     const { data: userProfile } = await supabaseAdmin
@@ -353,7 +430,11 @@ export async function deleteUser(userId: string) {
     const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (deleteAuthError) {
-      console.error('❌ [deleteUser] Error al eliminar usuario de Auth:', deleteAuthError);
+      logger.error(deleteAuthError instanceof Error ? deleteAuthError : new Error('Error al eliminar usuario de Auth'), {
+        context: 'deleteUser',
+        error: deleteAuthError.message,
+        userId
+      });
       return {
         success: false,
         message: deleteAuthError.message || 'Error al eliminar el usuario del sistema de autenticación',
@@ -367,21 +448,32 @@ export async function deleteUser(userId: string) {
       .eq('id', userId);
 
     if (deleteProfileError) {
-      console.warn('⚠️ [deleteUser] No se pudo eliminar de profiles:', deleteProfileError.message);
+      logger.warn('No se pudo eliminar de profiles', {
+        context: 'deleteUser',
+        error: deleteProfileError.message,
+        userId
+      });
       // No fallar si solo falla profiles, Auth ya se eliminó
     }
 
     // Revalidar la ruta para refrescar la tabla
     revalidatePath('/dashboard/admin');
 
-    console.log('✅ [deleteUser] Usuario eliminado exitosamente:', userName);
+    logger.debug('Usuario eliminado exitosamente', {
+      context: 'deleteUser',
+      userName,
+      userId
+    });
 
     return {
       success: true,
       message: `Usuario ${userName} eliminado exitosamente`,
     };
   } catch (error: any) {
-    console.error('❌ [deleteUser] Error inesperado:', error);
+    logger.error(error instanceof Error ? error : new Error('Error inesperado al eliminar usuario'), {
+      context: 'deleteUser',
+      error: error.message
+    });
     return {
       success: false,
       message: error.message || 'Error inesperado al eliminar el usuario',

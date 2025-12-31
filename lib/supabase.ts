@@ -10,18 +10,28 @@
 
 import { createBrowserClient } from '@supabase/ssr';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Validación de variables de entorno
+// Validación estricta de variables de entorno
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('⚠️ Supabase URL o Anon Key no están configuradas en las variables de entorno');
-  console.warn('⚠️ Asegúrate de configurar NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local');
+  const errorMessage = 
+    '❌ Variables de entorno de Supabase no configuradas.\n' +
+    'Asegúrate de configurar NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local';
+  
+  if (typeof window === 'undefined') {
+    // En el servidor, lanzar error inmediatamente
+    throw new Error(errorMessage);
+  } else {
+    // En el cliente, mostrar error visible
+    console.error(errorMessage);
+    throw new Error('Configuración de Supabase faltante. Ver consola para más detalles.');
+  }
 }
 
 // Validar formato de URL de Supabase
-if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
-  console.warn('⚠️ La URL de Supabase debe comenzar con https://');
+if (!supabaseUrl.startsWith('https://')) {
+  throw new Error('❌ La URL de Supabase debe comenzar con https://');
 }
 
 /**

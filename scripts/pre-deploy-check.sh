@@ -125,3 +125,5 @@ echo ""
 echo "🚀 Listo para deploy en Vercel!"
 echo "   Ejecuta: vercel --prod"
 
+
+

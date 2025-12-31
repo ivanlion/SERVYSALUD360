@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { CaseData, Reevaluation as IReevaluation, createNewReevaluation } from '../../types';
 import { Plus, Trash2, Calendar, Clock, Stethoscope, User, Lock, CheckCircle } from 'lucide-react';
 
@@ -196,6 +196,13 @@ export default function Reevaluation({ data, onChange, readOnly = false }: Reeva
     return `${y}-${m}-${d}`;
   };
 
+  // Memoizar la clave de dependencia para evitar re-renders innecesarios
+  const reevaluacionesKey = useMemo(() => {
+    return data.reevaluaciones
+      .map(r => `${r.diasAdicionales || 0}-${r.fecha || ''}-${r.tipo || ''}`)
+      .join('|');
+  }, [data.reevaluaciones]);
+
   // Main Effect: Recalculate Dates and Totals
   useEffect(() => {
     const baseStart = data.assessment.indicacionInicio;
@@ -239,7 +246,7 @@ export default function Reevaluation({ data, onChange, readOnly = false }: Reeva
   }, [
       data.assessment.indicacionInicio, 
       data.assessment.indicacionDuracion, 
-      JSON.stringify(data.reevaluaciones.map(r => ({ d: r.diasAdicionales, f: r.fecha }))) 
+      reevaluacionesKey
   ]);
 
   // Check if ALTA has been triggered in any reevaluation

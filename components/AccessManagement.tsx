@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useOptimistic, useTransition } from 'react';
+import React, { useState, useEffect, useOptimistic, useTransition, useRef } from 'react';
 import { Check, Plus, X, Loader2, AlertCircle, CheckCircle, Pencil, Trash2, Eye, Edit, Ban } from 'lucide-react';
 import { createUser } from '../app/actions/create-user';
 import { getUsers } from '../app/actions/get-users';
@@ -83,6 +83,8 @@ export default function AccessManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [updatingPermissions, setUpdatingPermissions] = useState<Set<string>>(new Set());
+  // Ref para guardar timeouts y limpiarlos adecuadamente
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isCheckingAdmin, setIsCheckingAdmin] = useState<boolean>(true);
@@ -109,19 +111,19 @@ export default function AccessManagement() {
   });
 
   // Función para cargar empresas de un usuario
+  // OPTIMIZACIÓN: Solo traer campos necesarios, sin count innecesario
   const loadUserEmpresas = async (userId: string): Promise<EmpresaInfo[]> => {
     try {
       const { data, error } = await supabase
         .from('user_empresas')
         .select(`
           empresa_id,
-          empresas (
+          empresas!inner (
             id,
             nombre
           )
-        `, { count: 'exact' })
-        .eq('user_id', userId)
-        .limit(200);
+        `) // OPTIMIZACIÓN: Removido count: 'exact' y limit innecesario (inner join más eficiente)
+        .eq('user_id', userId);
 
       if (error) {
         logger.error(new Error(`Error al cargar empresas para usuario ${userId}`), {
@@ -157,24 +159,115 @@ export default function AccessManagement() {
     }
   };
 
-  // Función para cargar empresas de todos los usuarios
+  // Función para cargar empresas de todos los usuarios (OPTIMIZADA con batching)
   const loadAllUsersEmpresas = async (usersList: User[]): Promise<User[]> => {
     try {
       logger.debug('[loadAllUsersEmpresas] Cargando empresas para', usersList.length, 'usuarios...');
       
-      // Cargar empresas en paralelo para todos los usuarios
-      const usersWithEmpresas = await Promise.all(
-        usersList.map(async (user) => {
-          const empresas = await loadUserEmpresas(user.id);
-          return {
-            ...user,
-            empresas,
-          };
-        })
-      );
+      // Si no hay usuarios, retornar vacío
+      if (usersList.length === 0) {
+        return [];
+      }
 
-      logger.debug('[loadAllUsersEmpresas] Empresas cargadas para todos los usuarios');
-      return usersWithEmpresas;
+      // OPTIMIZACIÓN: Una sola consulta para todos los usuarios en lugar de N consultas
+      const userIds = usersList.map(user => user.id);
+      
+      // OPTIMIZACIÓN: Si hay muchos usuarios, procesar en batches para evitar consultas muy grandes
+      const BATCH_SIZE = 100; // Procesar máximo 100 usuarios a la vez
+      const batches: string[][] = [];
+      for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+        batches.push(userIds.slice(i, i + BATCH_SIZE));
+      }
+      
+      try {
+        // Procesar batches en paralelo (máximo 3 a la vez para no sobrecargar)
+        const batchPromises = batches.slice(0, 3).map(async (batch) => {
+          const { data, error } = await supabase
+            .from('user_empresas')
+            .select(`
+              user_id,
+              empresa_id,
+              empresas!inner (
+                id,
+                nombre
+              )
+            `) // OPTIMIZACIÓN: inner join más eficiente, solo campos necesarios
+            .in('user_id', batch);
+          
+          if (error) throw error;
+          return data || [];
+        });
+        
+        // Procesar batches restantes secuencialmente si hay más de 3
+        let allData: any[] = [];
+        const firstBatchResults = await Promise.all(batchPromises);
+        allData = firstBatchResults.flat();
+        
+        // Procesar batches restantes
+        for (let i = 3; i < batches.length; i++) {
+          const { data, error } = await supabase
+            .from('user_empresas')
+            .select(`
+              user_id,
+              empresa_id,
+              empresas!inner (
+                id,
+                nombre
+              )
+            `)
+            .in('user_id', batches[i]);
+          
+          if (error) {
+            logger.warn(new Error(`Error en batch ${i}`), { context: 'loadAllUsersEmpresas' });
+            continue;
+          }
+          
+          if (data) {
+            allData = [...allData, ...data];
+          }
+        }
+        
+        const data = allData;
+
+        if (!data || data.length === 0) {
+          // No hay empresas para ningún usuario
+          return usersList.map(user => ({ ...user, empresas: [] }));
+        }
+
+        // Agrupar empresas por user_id
+        // OPTIMIZACIÓN: Validación defensiva para evitar procesar datos inválidos
+        const empresasPorUsuario = new Map<string, EmpresaInfo[]>();
+        
+        data.forEach((item: any) => {
+          // VALIDACIÓN: Verificar que item y sus propiedades existen
+          if (item?.empresas && item?.user_id && item.empresas.id && item.empresas.nombre) {
+            const empresa: EmpresaInfo = {
+              id: item.empresas.id,
+              nombre: item.empresas.nombre,
+            };
+            
+            if (!empresasPorUsuario.has(item.user_id)) {
+              empresasPorUsuario.set(item.user_id, []);
+            }
+            empresasPorUsuario.get(item.user_id)!.push(empresa);
+          }
+        });
+
+        // Mapear usuarios con sus empresas
+        const usersWithEmpresas = usersList.map(user => ({
+          ...user,
+          empresas: empresasPorUsuario.get(user.id) || [],
+        }));
+
+        logger.debug('[loadAllUsersEmpresas] Empresas cargadas para todos los usuarios (batch)');
+        return usersWithEmpresas;
+      } catch (batchError: any) {
+        logger.error(batchError instanceof Error ? batchError : new Error('Error en consulta batch'), {
+          context: 'loadAllUsersEmpresas'
+        });
+        // Fallback: retornar usuarios sin empresas
+        return usersList.map(user => ({ ...user, empresas: [] }));
+      }
     } catch (error: any) {
       logger.error(error instanceof Error ? error : new Error('Error al cargar empresas'), {
         context: 'loadAllUsersEmpresas'
@@ -440,7 +533,9 @@ export default function AccessManagement() {
         }
         setIsLoadingUsers(false);
       } catch (error: any) {
-        console.error('Error al inicializar datos:', error);
+        logger.error(error instanceof Error ? error : new Error('Error al inicializar datos'), {
+          context: 'AccessManagement'
+        });
         setIsAdmin(false);
         setUsers([]);
         setLocalUsers([]);
@@ -451,6 +546,12 @@ export default function AccessManagement() {
     };
 
     initializeData();
+    
+    // Cleanup: limpiar todos los timeouts al desmontar
+    return () => {
+      timeoutRefs.current.forEach(timeoutId => clearTimeout(timeoutId));
+      timeoutRefs.current = [];
+    };
   }, []);
 
   // Verificación final antes de renderizar (por si el estado no se actualizó correctamente)
@@ -465,21 +566,23 @@ export default function AccessManagement() {
           emailLower === 'lionfonseca@gmail.com' ||
           emailLower.includes('lionfonseca');
         
-        console.log('[AccessManagement] Verificación final antes de render:', {
+        logger.debug('[AccessManagement] Verificación final antes de render', {
           email: email,
           isSuperAdminFinal: isSuperAdminFinal,
           isAdminState: isAdmin,
         });
         
         if (isSuperAdminFinal && !isAdmin) {
-          console.log('[AccessManagement] ⚠️ CORRIGIENDO: Super Admin detectado pero isAdmin=false, forzando acceso');
+          logger.warn('[AccessManagement] Super Admin detectado pero isAdmin=false, forzando acceso');
           setIsAdmin(true);
           setFinalAdminCheck(true);
         } else {
           setFinalAdminCheck(isAdmin);
         }
       } catch (error) {
-        console.error('[AccessManagement] Error en verificación final:', error);
+        logger.error(error instanceof Error ? error : new Error('Error en verificación final'), {
+          context: 'AccessManagement'
+        });
         setFinalAdminCheck(isAdmin);
       }
     };
@@ -671,8 +774,8 @@ export default function AccessManagement() {
                    setLocalUsers(usersWithEmpresas);
                  }
 
-          // Cerrar el modal después de 1.5 segundos
-          setTimeout(() => {
+          // Cerrar el modal después de 1.5 segundos (con cleanup)
+          const timeoutId = setTimeout(() => {
             setIsModalOpen(false);
             setIsEditMode(false);
             setEditingUserId(null);
@@ -683,6 +786,7 @@ export default function AccessManagement() {
               rol: 'Usuario',
             });
           }, 1500);
+          timeoutRefs.current.push(timeoutId);
         } else {
           showError(result.message || 'Error al actualizar el usuario');
         }
@@ -739,10 +843,11 @@ export default function AccessManagement() {
             rol: 'Usuario',
           });
 
-          // Cerrar el modal automáticamente después de mostrar éxito
-          setTimeout(() => {
+          // Cerrar el modal automáticamente después de mostrar éxito (con cleanup)
+          const timeoutId = setTimeout(() => {
             setIsModalOpen(false);
           }, 1500);
+          timeoutRefs.current.push(timeoutId);
         } else {
           // Mostrar notificación de error
           showError(result.message || 'Error al crear el usuario');

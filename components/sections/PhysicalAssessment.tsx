@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PhysicalAssessment as IAssessment, AssessmentItem, JobDemandLevel, CapacityLevel } from '../../types';
 import { AlertTriangle, ShieldAlert, Activity, Plus, Trash2, Calculator, ChevronDown, ChevronRight, Briefcase, Info, User } from 'lucide-react';
 
@@ -299,8 +299,8 @@ export default function PhysicalAssessmentComponent({ assessment, onChange, read
     }
   };
 
-  // Calculate Scores
-  const calculateRoleScore = () => {
+  // OPTIMIZACIÓN: Memoizar cálculo costoso de scores para evitar recálculos innecesarios
+  const { maxScore, contributingVariables } = useMemo(() => {
     let maxScore = 0;
     const contributingVariables: string[] = [];
 
@@ -331,10 +331,12 @@ export default function PhysicalAssessmentComponent({ assessment, onChange, read
     });
 
     return { maxScore, contributingVariables };
-  };
+  }, [assessment]); // Solo recalcular cuando assessment cambie
 
-  const { maxScore, contributingVariables } = calculateRoleScore();
-  const scoreData = SCORE_INTERPRETATION[maxScore] || { definition: '-', percentage: '0%' };
+  const scoreData = useMemo(() => 
+    SCORE_INTERPRETATION[maxScore] || { definition: '-', percentage: '0%' },
+    [maxScore]
+  );
 
   // Helper to handle radio changes for standard tables
   const handleAssessmentChange = (key: keyof IAssessment, field: keyof AssessmentItem, value: string) => {

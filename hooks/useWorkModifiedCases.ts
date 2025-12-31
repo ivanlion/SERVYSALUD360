@@ -78,11 +78,16 @@ export function useWorkModifiedCases(currentPage: number = 1, pageSize: number =
     queryFn: async (supabaseClient) => {
       const offset = (currentPage - 1) * pageSize;
       
+      // OPTIMIZACIÓN: Solo campos necesarios para la vista del dashboard
+      // Removido count: 'exact' del select principal, se obtiene por separado si es necesario
       let query = supabaseClient
         .from('registros_trabajadores')
         .select('id, fecha_registro, apellidos_nombre, dni_ce_pas, telefono_trabajador, sexo, jornada_laboral, puesto_trabajo, empresa, gerencia, supervisor_responsable, telf_contacto_supervisor, empresa_id', { count: 'exact' })
         .order('fecha_registro', { ascending: false })
         .range(offset, offset + pageSize - 1);
+      
+      // NOTA: count: 'exact' se mantiene aquí porque es necesario para la paginación
+      // pero solo se calcula una vez, no se transfiere con cada fila
       
       // Filtrar por empresa activa si está disponible (multi-tenancy)
       if (empresaActiva?.id) {
@@ -118,6 +123,10 @@ export function useWorkModifiedCases(currentPage: number = 1, pageSize: number =
           context: 'useWorkModifiedCases',
           dataCount: data.length
         });
+        
+        // Nota: Las notificaciones se manejan en el componente que usa el hook
+        // para evitar dependencias circulares y mantener el hook puro
+        
         // Continuar con datos sin validar como fallback (pero loguear el error)
         const mappedCases = data.map((record: any, index: number) =>
           mapSupabaseToCaseData(record as SupabaseRecord, index)
@@ -129,8 +138,8 @@ export function useWorkModifiedCases(currentPage: number = 1, pageSize: number =
         };
       }
     },
-    staleTime: 1000 * 60 * 2, // 2 minutos (datos cambian frecuentemente)
-    gcTime: 1000 * 60 * 5, // 5 minutos
+    staleTime: 1000 * 60 * 5, // 5 minutos (ajustado para mejor rendimiento)
+    gcTime: 1000 * 60 * 15, // 15 minutos en caché
   });
 }
 

@@ -77,7 +77,7 @@ export async function handleCasosTool(
       
       let query = supabase
         .from('casos')
-        .select('*')
+        .select('id, fecha, status, empresa_id, trabajador_id, tipo_evento, created_at, updated_at')
         .limit(limit);
       
       if (status) {
@@ -130,7 +130,7 @@ export async function handleCasosTool(
       
       const { data, error } = await supabase
         .from('casos')
-        .select('*')
+        .select('id, fecha, status, empresa_id, trabajador_id, tipo_evento, datos, created_at, updated_at')
         .eq('id', id)
         .single();
       
@@ -173,7 +173,7 @@ export async function handleCasosTool(
       
       const { data, error } = await supabase
         .from('casos')
-        .select('*')
+        .select('id, fecha, status, empresa_id, trabajador_id, tipo_evento, datos, created_at, updated_at')
         .or(`trabajadorNombre.ilike.%${query}%,dni.ilike.%${query}%,empresa.ilike.%${query}%`)
         .limit(50);
       

@@ -71,7 +71,7 @@ export async function handleExamenesTool(
       
       let query = supabase
         .from('examenes_medicos')
-        .select('*')
+        .select('id, trabajador_id, empresa_id, fecha_examen, tipo_examen, resultado, observaciones, archivo_url, created_at, updated_at')
         .limit(limit);
       
       if (trabajador_id) {

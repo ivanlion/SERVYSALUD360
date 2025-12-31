@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '../../../utils/logger';
 
 /**
  * Handler POST para el endpoint MCP
@@ -62,7 +63,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     // Manejar errores de parsing o procesamiento
-    console.error('[MCP Route] Error procesando request:', error);
+    logger.error(error instanceof Error ? error : new Error('Error procesando request MCP'), {
+      context: 'MCPRoute',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
 
     // Retornar error en formato JSON-RPC 2.0
     return NextResponse.json(

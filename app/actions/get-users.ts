@@ -9,9 +9,11 @@ import { logger } from '../../utils/logger';
  * Intenta obtener usuarios desde la tabla profiles primero,
  * si no existe, obtiene usuarios desde auth.users
  * 
- * @returns Array de usuarios con sus datos
+ * @param page - Número de página (opcional, default: 1)
+ * @param pageSize - Tamaño de página (opcional, default: 100)
+ * @returns Array de usuarios con sus datos y metadatos de paginación
  */
-export async function getUsers() {
+export async function getUsers(page: number = 1, pageSize: number = 100) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,13 +45,15 @@ export async function getUsers() {
       },
     });
 
-    // Obtener usuarios desde la tabla profiles (solo campos necesarios para mejor rendimiento)
+    // OPTIMIZACIÓN: Obtener usuarios desde la tabla profiles con paginación
+    // Solo campos necesarios, sin count innecesario (reduce transferencia de datos)
     // Nota: Solo seleccionar columnas que existen en la tabla (full_name, role - no rol)
-    const { data: profilesData, error: profilesError } = await supabase
+    const offset = (page - 1) * pageSize;
+    const { data: profilesData, error: profilesError, count } = await supabase
       .from('profiles')
-      .select('id, email, full_name, role, permissions, created_at', { count: 'exact' })
+      .select('id, email, full_name, role, permissions, created_at', { count: 'exact' }) // count necesario para paginación
       .order('created_at', { ascending: false })
-      .limit(100);
+      .range(offset, offset + pageSize - 1);
 
     // Si hay error pero no es porque la tabla no existe, retornar error
     if (profilesError && profilesError.code !== 'PGRST116') {
@@ -68,7 +72,9 @@ export async function getUsers() {
     if (!profilesError && profilesData !== null) {
       // Si no hay datos en profiles, intentar obtener desde auth.users
       if (profilesData.length === 0) {
-        console.log('[getUsers] No hay usuarios en profiles, intentando obtener desde auth.users...');
+        logger.debug('No hay usuarios en profiles, intentando obtener desde auth.users', {
+          context: 'getUsers'
+        });
         
         // Intentar obtener desde auth.users si tenemos Service Role Key
         if (supabaseServiceRoleKey) {
@@ -82,7 +88,10 @@ export async function getUsers() {
           const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
 
           if (!authError && authData && authData.users) {
-            console.log(`[getUsers] Encontrados ${authData.users.length} usuarios en auth.users`);
+            logger.debug(`Encontrados ${authData.users.length} usuarios en auth.users`, {
+              context: 'getUsers',
+              userCount: authData.users.length
+            });
             const users = authData.users.map((user: any) => ({
               id: user.id,
               name: user.user_metadata?.nombre || user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuario',
@@ -104,6 +113,10 @@ export async function getUsers() {
               success: true,
               message: `${users.length} usuarios encontrados en Auth`,
               users,
+              totalCount: users.length,
+              page: 1,
+              pageSize: users.length,
+              totalPages: 1,
             };
           }
         }
@@ -113,6 +126,10 @@ export async function getUsers() {
           success: true,
           message: 'No se encontraron usuarios en profiles ni en auth.users',
           users: [],
+          totalCount: 0,
+          page,
+          pageSize,
+          totalPages: 0,
         };
       }
       const users = profilesData.map((profile: any) => {
@@ -182,6 +199,10 @@ export async function getUsers() {
         success: true,
         message: `${users.length} usuarios encontrados en profiles`,
         users,
+        totalCount: count || users.length,
+        page,
+        pageSize,
+        totalPages: count ? Math.ceil(count / pageSize) : 1,
       };
     }
 
@@ -197,7 +218,10 @@ export async function getUsers() {
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
 
       if (authError) {
-        console.error('Error al obtener usuarios de Auth:', authError);
+        logger.error(authError instanceof Error ? authError : new Error('Error al obtener usuarios de Auth'), {
+          context: 'getUsers',
+          error: authError.message
+        });
         return {
           success: false,
           message: authError.message || 'Error al obtener usuarios',
@@ -227,6 +251,10 @@ export async function getUsers() {
           success: true,
           message: `${users.length} usuarios encontrados en Auth`,
           users,
+          totalCount: users.length,
+          page: 1,
+          pageSize: users.length,
+          totalPages: 1,
         };
       }
     }
@@ -235,9 +263,16 @@ export async function getUsers() {
       success: true,
       message: 'No se encontraron usuarios',
       users: [],
+      totalCount: 0,
+      page,
+      pageSize,
+      totalPages: 0,
     };
   } catch (error: any) {
-    console.error('Error inesperado al obtener usuarios:', error);
+    logger.error(error instanceof Error ? error : new Error('Error inesperado al obtener usuarios'), {
+      context: 'getUsers',
+      error: error.message
+    });
     return {
       success: false,
       message: error.message || 'Error inesperado al obtener usuarios',

@@ -31,13 +31,41 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useRouter } from 'next/navigation';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useChat } from '../contexts/ChatContext';
+import { logger } from '../utils/logger';
 
 // ============================================================================
 // COMPONENTES LIGEROS - Importación normal
 // Estos componentes se cargan inmediatamente porque son esenciales para la UI
 // ============================================================================
-import Dashboard from '../components/Dashboard';
-import WorkModifiedDashboard from '../components/WorkModifiedDashboard';
+// Lazy loading para componentes pesados (mejora tiempo de carga inicial)
+const Dashboard = dynamic(() => import('../components/Dashboard'), {
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader2 className="animate-spin text-blue-600" size={48} />
+    </div>
+  ),
+});
+
+const WorkModifiedDashboard = dynamic(() => import('../components/WorkModifiedDashboard'), {
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader2 className="animate-spin text-blue-600" size={48} />
+    </div>
+  ),
+});
+
+// OPTIMIZACIÓN: Lazy loading para CaseForm (componente muy pesado ~961 líneas)
+// Solo se carga cuando el usuario necesita crear/editar un caso
+const CaseForm = dynamic(() => import('../components/CaseForm'), {
+  loading: () => (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <Loader2 className="animate-spin text-blue-600" size={32} />
+      <span className="ml-3 text-gray-600">Cargando formulario...</span>
+    </div>
+  ),
+  ssr: false, // No necesita SSR ya que es un formulario interactivo
+});
+
 import AuthGuard from '../components/AuthGuard';
 import { CaseData, INITIAL_CASE, createNewReevaluation } from '../types';
 import { supabase } from '../lib/supabase';
@@ -60,16 +88,6 @@ const LoadingSpinner = ({ message = 'Cargando módulo...' }: { message?: string 
     </div>
   </div>
 );
-
-/**
- * CaseForm - Formulario multi-paso para registro de trabajo modificado
- * Lazy loading: Aunque se usa frecuentemente, es un componente pesado
- * con múltiples secciones y validaciones complejas
- */
-const CaseForm = dynamic(() => import('../components/CaseForm'), {
-  loading: () => <LoadingSpinner message="Cargando formulario..." />,
-  ssr: false
-});
 
 /**
  * AccessManagement - Gestión de accesos y permisos de usuarios
@@ -288,7 +306,9 @@ export default function Home() {
       await supabase.auth.signOut();
       router.push('/login');
     } catch (error) {
-      console.error('Error al cerrar sesión:', error);
+      logger.error(error instanceof Error ? error : new Error('Error al cerrar sesión'), {
+        context: 'Home'
+      });
     }
   }, [router]);
 
@@ -299,7 +319,9 @@ export default function Home() {
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     if (!apiKey) {
-      console.warn('NEXT_PUBLIC_GEMINI_API_KEY no está configurada');
+      logger.warn('NEXT_PUBLIC_GEMINI_API_KEY no está configurada', {
+        context: 'Home'
+      });
       return;
     }
     
@@ -335,10 +357,15 @@ REGLAS DE COMPORTAMIENTO:
 Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores, siguiendo los estándares peruanos de salud ocupacional.`
       });
     } catch (error: any) {
-      console.error('Error al inicializar Gemini:', error);
+      logger.error(error instanceof Error ? error : new Error('Error al inicializar Gemini'), {
+        context: 'Home',
+        error: error.message
+      });
       // Si hay un error 404, puede ser que el modelo no esté disponible
       if (error.message?.includes('404') || error.message?.includes('not found')) {
-        console.warn('El modelo gemini-2.5-flash puede no estar disponible. Considera usar gemini-1.5-flash como alternativa.');
+        logger.warn('El modelo gemini-2.5-flash puede no estar disponible. Considera usar gemini-1.5-flash como alternativa.', {
+          context: 'Home'
+        });
       }
     }
   }, []);
@@ -358,7 +385,9 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
           setGeminiResponse(text);
           setHasWelcomed(true);
         } catch (err: any) {
-          console.error('Error al enviar mensaje de bienvenida:', err);
+          logger.error(err instanceof Error ? err : new Error('Error al enviar mensaje de bienvenida'), {
+            context: 'Home'
+          });
           // No mostrar error en el saludo inicial, solo loguearlo
         } finally {
           setIsLoading(false);
@@ -440,7 +469,10 @@ Recuerda siempre mantener el enfoque en la seguridad y salud de los trabajadores
       setGeminiResponse(text);
       setUserPrompt(''); // Limpiar el input después de enviar
     } catch (err: any) {
-      console.error('Error al generar respuesta:', err);
+      logger.error(err instanceof Error ? err : new Error('Error al generar respuesta'), {
+        context: 'Home',
+        error: err.message
+      });
       // Mensaje de error más descriptivo
       if (err.message?.includes('404') || err.message?.includes('not found')) {
         setError('Modelo no encontrado. Verifica que "gemini-2.5-flash" esté disponible en tu región. Si el problema persiste, intenta con "gemini-1.5-flash".');
@@ -588,7 +620,10 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         setGeminiResponse(text);
       }
     } catch (err: any) {
-      console.error('Error al analizar PDF:', err);
+      logger.error(err instanceof Error ? err : new Error('Error al analizar PDF'), {
+        context: 'Home',
+        error: err.message
+      });
       // Mensaje de error más descriptivo
       if (err.message?.includes('404') || err.message?.includes('not found')) {
         setError('Modelo no encontrado. Verifica que "gemini-2.5-flash" esté disponible en tu región. Si el problema persiste, intenta con "gemini-1.5-flash".');

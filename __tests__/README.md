@@ -236,3 +236,5 @@ El entorno de testing (`jest-environment-jsdom`) ya está configurado. Si persis
 
 **Nota**: Los tests son una herramienta de desarrollo. Escribe tests que te den confianza para refactorizar y agregar nuevas funcionalidades.
 
+
+

@@ -11,6 +11,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
+import { logger } from '../../utils/logger';
 import { LogIn, Loader2, AlertCircle, Eye, EyeOff, Lock, Mail, Activity } from 'lucide-react';
 import Link from 'next/link';
 
@@ -32,7 +33,9 @@ export default function LoginPage() {
           router.push('/');
         }
       } catch (err) {
-        console.error('Error al verificar sesión:', err);
+        logger.error(err instanceof Error ? err : new Error('Error al verificar sesión'), {
+          context: 'LoginPage'
+        });
       } finally {
         setIsChecking(false);
       }
@@ -63,7 +66,10 @@ export default function LoginPage() {
         router.refresh();
       }
     } catch (err: any) {
-      console.error('Error al iniciar sesión:', err);
+      logger.error(err instanceof Error ? err : new Error('Error al iniciar sesión'), {
+        context: 'LoginPage',
+        error: err.message
+      });
       setError(err.message || 'Error al iniciar sesión. Verifica tus credenciales.');
     } finally {
       setIsLoading(false);

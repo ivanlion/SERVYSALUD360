@@ -17,6 +17,8 @@ import { logger } from '@/utils/logger';
 export default function GlobalChat() {
   const { isChatOpen, toggleChat, closeChat } = useChat();
   const [userPrompt, setUserPrompt] = useState('');
+  // Limitar historial a últimos 50 mensajes para evitar memory leaks
+  const MAX_MESSAGES = 50;
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -32,10 +34,15 @@ export default function GlobalChat() {
       
       // Mensaje de bienvenida
       setMessages([{
-        role: 'assistant',
+        role: 'assistant' as const,
         content: '¡Hola! Soy tu asistente de salud ocupacional. ¿En qué puedo ayudarte hoy?'
       }]);
     }
+    
+    // Cleanup para evitar memory leaks
+    return () => {
+      geminiModelRef.current = null;
+    };
   }, []);
 
   // Scroll al final cuando hay nuevos mensajes
@@ -60,19 +67,27 @@ export default function GlobalChat() {
       const response = await result.response;
       const text = response.text();
 
-      // Agregar respuesta del asistente
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: text
-      }]);
+      // Agregar respuesta del asistente (limitar historial)
+      setMessages(prev => {
+        const updated = [...prev, {
+          role: 'assistant' as const,
+          content: text
+        }];
+        // Mantener solo los últimos MAX_MESSAGES mensajes
+        return updated.slice(-MAX_MESSAGES);
+      });
     } catch (error: any) {
       logger.error(error instanceof Error ? error : new Error('Error al obtener respuesta'), {
         context: 'GlobalChat'
       });
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `Lo siento, hubo un error al procesar tu consulta: ${error.message || 'Error desconocido'}. Por favor, intenta nuevamente.`
-      }]);
+      setMessages(prev => {
+        const updated = [...prev, {
+          role: 'assistant' as const,
+          content: `Lo siento, hubo un error al procesar tu consulta: ${error.message || 'Error desconocido'}. Por favor, intenta nuevamente.`
+        }];
+        // Mantener solo los últimos MAX_MESSAGES mensajes
+        return updated.slice(-MAX_MESSAGES);
+      });
     } finally {
       setIsLoading(false);
     }

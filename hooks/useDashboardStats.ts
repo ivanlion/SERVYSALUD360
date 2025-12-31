@@ -25,32 +25,46 @@ export function useDashboardStats() {
   return useSupabaseQuery<DashboardStats>({
     queryKey: ['dashboard-stats', empresaActiva?.id || 'all'],
     queryFn: async (supabaseClient) => {
-      // Consultas paralelas para mejor rendimiento
+      // OPTIMIZACIÓN: Consultas paralelas usando head:true para solo obtener counts
+      // Esto reduce drásticamente la transferencia de datos (solo metadata, no filas)
       const [casosResult, trabajadoresResult] = await Promise.all([
-        // Consulta de casos
+        // Consulta de casos - OPTIMIZADA: dos consultas separadas para total y activos
         (async () => {
           try {
-            let casosQuery = supabaseClient
+            // Consulta 1: Total de casos (solo count, sin datos)
+            let casosTotalQuery = supabaseClient
               .from('casos')
-              .select('id, status', { count: 'exact', head: false });
+              .select('*', { count: 'exact', head: true });
             
             if (empresaActiva?.id) {
-              casosQuery = casosQuery.eq('empresa_id', empresaActiva.id);
+              casosTotalQuery = casosTotalQuery.eq('empresa_id', empresaActiva.id);
             }
             
-            const { data, count } = await casosQuery;
+            const { count: totalCount } = await casosTotalQuery;
             
-            if (data && count !== null) {
+            // Consulta 2: Solo casos activos (solo count, sin datos)
+            let casosActivosQuery = supabaseClient
+              .from('casos')
+              .select('*', { count: 'exact', head: true })
+              .eq('status', 'ACTIVO');
+            
+            if (empresaActiva?.id) {
+              casosActivosQuery = casosActivosQuery.eq('empresa_id', empresaActiva.id);
+            }
+            
+            const { count: activosCount } = await casosActivosQuery;
+            
+            if (totalCount !== null) {
               return {
-                total: count,
-                activos: data.filter((c: any) => c.status === 'ACTIVO').length,
+                total: totalCount,
+                activos: activosCount || 0,
               };
             }
             
-            // Fallback: usar registros_trabajadores como casos
+            // Fallback: usar registros_trabajadores como casos (solo count)
             let trabajadoresQuery = supabaseClient
               .from('registros_trabajadores')
-              .select('id', { count: 'exact', head: false });
+              .select('*', { count: 'exact', head: true });
             
             if (empresaActiva?.id) {
               trabajadoresQuery = trabajadoresQuery.eq('empresa_id', empresaActiva.id);
@@ -67,12 +81,12 @@ export function useDashboardStats() {
           }
         })(),
         
-        // Consulta de trabajadores
+        // Consulta de trabajadores - OPTIMIZADA: solo count, sin datos
         (async () => {
           try {
             let trabajadoresQuery = supabaseClient
               .from('registros_trabajadores')
-              .select('id', { count: 'exact', head: false });
+              .select('*', { count: 'exact', head: true });
             
             if (empresaActiva?.id) {
               trabajadoresQuery = trabajadoresQuery.eq('empresa_id', empresaActiva.id);

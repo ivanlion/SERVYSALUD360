@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
+import { logger } from '../../utils/logger';
 
 /**
  * Server Action para crear un nuevo usuario en Supabase Auth
@@ -80,7 +81,10 @@ export async function createUser(formData: FormData) {
     });
 
     if (authError) {
-      console.error('Error al crear usuario en Auth:', authError);
+      logger.error(authError instanceof Error ? authError : new Error('Error al crear usuario en Auth'), {
+        context: 'createUser',
+        error: authError.message
+      });
       return {
         success: false,
         message: authError.message || 'Error al crear el usuario en el sistema de autenticación',
@@ -106,10 +110,16 @@ export async function createUser(formData: FormData) {
       .single();
 
     if (!profileCheck) {
-      console.warn('⚠️ El usuario fue creado en Auth pero el perfil no se creó automáticamente.');
-      console.warn('⚠️ Verifica que el trigger de SQL esté configurado correctamente.');
+      logger.warn('El usuario fue creado en Auth pero el perfil no se creó automáticamente', {
+        context: 'createUser',
+        userId: authData.user.id,
+        message: 'Verifica que el trigger de SQL esté configurado correctamente'
+      });
     } else {
-      console.log('✅ Usuario y perfil creados exitosamente');
+      logger.debug('Usuario y perfil creados exitosamente', {
+        context: 'createUser',
+        userId: authData.user.id
+      });
     }
 
     // Revalidar la ruta para refrescar la tabla
@@ -121,7 +131,10 @@ export async function createUser(formData: FormData) {
       userId: authData.user.id,
     };
   } catch (error: any) {
-    console.error('Error inesperado al crear usuario:', error);
+    logger.error(error instanceof Error ? error : new Error('Error inesperado al crear usuario'), {
+      context: 'createUser',
+      error: error.message
+    });
     return {
       success: false,
       message: error.message || 'Error inesperado al crear el usuario',

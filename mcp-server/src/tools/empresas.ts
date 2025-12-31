@@ -176,7 +176,7 @@ export async function handleEmpresasTool(
       
       const { data, error } = await supabase
         .from('empresas')
-        .select('*')
+        .select('id, nombre, ruc, direccion, telefono, email, nombre_comercial, actividades_economicas, activa, created_at, updated_at')
         .eq('id', empresa_id)
         .single();
       
@@ -233,7 +233,7 @@ export async function handleEmpresasTool(
         // Buscar empresas
         let empresasQuery = supabase
           .from('empresas')
-          .select('*')
+          .select('id, nombre, ruc, direccion, telefono, email, nombre_comercial, actividades_economicas, activa, created_at, updated_at')
           .or(`nombre.ilike.%${query}%,ruc.ilike.%${query}%`);
         
         // Filtrar por empresas del usuario si se proporcionó user_id

@@ -9,7 +9,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -193,7 +193,8 @@ const caseFormSchema = z.object({
 
 type CaseFormData = z.infer<typeof caseFormSchema>;
 
-export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProps) {
+// OPTIMIZACIÓN: Memoizar componente para evitar re-renders innecesarios
+const CaseForm = memo(function CaseForm({ initialData, onSave, onCancel }: CaseFormProps) {
   const { showSuccess, showError, showWarning } = useNotifications();
   const [currentStep, setCurrentStep] = useState(1);
   const [stepStatuses, setStepStatuses] = useState<Record<number, StepStatus>>({});
@@ -331,8 +332,8 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
     return current?.message;
   };
 
-  // Helper validation for Assessment sections
-  const validateAssessment = (assessment: PhysicalAssessment) => {
+  // Helper validation for Assessment sections (memoizado para evitar recálculos innecesarios)
+  const validateAssessment = useCallback((assessment: PhysicalAssessment): StepStatus => {
     let assessmentItemsFilled = 0;
     let assessmentItemsTotal = 0;
     
@@ -369,7 +370,7 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
       return 'partial';
     }
     return 'empty';
-  };
+  }, []);
 
   // Strict Validation Logic
   const calculateStatuses = () => {
@@ -674,7 +675,50 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
         .select();
 
       if (error) {
-        throw error;
+        // ✅ Manejo específico por tipo de error de Supabase
+        if (error.code === '23505') {
+          // Violación de constraint único (duplicado)
+          showError('Ya existe un registro con estos datos. Por favor, verifica el DNI o nombre del trabajador.');
+          logger.error(new Error('Error de duplicado en registros_trabajadores'), {
+            context: 'CaseForm.onSubmit',
+            errorCode: error.code,
+            errorMessage: error.message,
+            data: { dni: data.dni, trabajadorNombre: data.trabajadorNombre }
+          });
+          return;
+        } else if (error.code === '23503') {
+          // Violación de foreign key
+          showError('Error de referencia: Verifica que la empresa y otros datos relacionados existan en el sistema.');
+          logger.error(new Error('Error de foreign key en registros_trabajadores'), {
+            context: 'CaseForm.onSubmit',
+            errorCode: error.code,
+            errorMessage: error.message,
+            hint: error.hint
+          });
+          return;
+        } else if (error.code === '42501' || error.message?.includes('RLS') || error.message?.includes('permission')) {
+          // Error de RLS (Row Level Security)
+          showError('No tiene permisos para crear este registro. Por favor, contacta al administrador.');
+          logger.error(new Error('Error de permisos RLS en registros_trabajadores'), {
+            context: 'CaseForm.onSubmit',
+            errorCode: error.code,
+            errorMessage: error.message
+          });
+          return;
+        } else if (error.code === '23514') {
+          // Violación de constraint check
+          showError('Los datos ingresados no cumplen con las validaciones requeridas. Por favor, revisa los campos.');
+          logger.error(new Error('Error de validación en registros_trabajadores'), {
+            context: 'CaseForm.onSubmit',
+            errorCode: error.code,
+            errorMessage: error.message,
+            hint: error.hint
+          });
+          return;
+        } else {
+          // Otro tipo de error, lanzarlo para manejo general
+          throw error;
+        }
       }
 
       // Verificar que se insertaron los datos correctamente
@@ -958,4 +1002,7 @@ export default function CaseForm({ initialData, onSave, onCancel }: CaseFormProp
       </div>
     </form>
   );
-}
+});
+
+// Exportar componente memoizado
+export default CaseForm;

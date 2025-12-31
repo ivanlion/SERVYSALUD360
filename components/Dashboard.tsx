@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import Link from 'next/link';
 import { CaseData } from '../types';
 import { Briefcase, Heart, Shield, Settings, Users, FileText, Building2, Gavel, Upload, TrendingUp, AlertCircle } from 'lucide-react';
@@ -23,7 +23,8 @@ interface DashboardProps {
   user?: any; // Datos del usuario para el saludo
 }
 
-export default function Dashboard({ onEdit, onCreate, user: userProp }: DashboardProps) {
+// OPTIMIZACIÓN: Memoizar componente para evitar re-renders innecesarios
+const Dashboard = memo(function Dashboard({ onEdit, onCreate, user: userProp }: DashboardProps) {
   const { setCurrentView } = useNavigation();
   const { empresaActiva, empresas } = useCompany();
   const { user: contextUser, profile } = useUser();
@@ -44,6 +45,8 @@ export default function Dashboard({ onEdit, onCreate, user: userProp }: Dashboar
   }, isLoading: isLoadingStats } = useDashboardStats();
 
   // Tarjetas del dashboard (memoizadas para evitar re-renders)
+  // ✅ OPTIMIZACIÓN: Usar valores primitivos específicos en lugar del objeto completo
+  // para evitar re-renders innecesarios cuando cambian otros valores de stats
   const dashboardCards = useMemo(() => [
     {
       id: 'trabajo-modificado',
@@ -126,7 +129,7 @@ export default function Dashboard({ onEdit, onCreate, user: userProp }: Dashboar
       onClick: () => setCurrentView('ACCESS_MANAGEMENT'),
       featured: false
     }
-  ], [setCurrentView, stats, empresas.length]);
+  ], [setCurrentView, stats.casosActivos, stats.trabajadores, empresas.length]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 bg-transparent dark:bg-transparent">
@@ -268,4 +271,7 @@ export default function Dashboard({ onEdit, onCreate, user: userProp }: Dashboar
       </div>
     </div>
   );
-}
+});
+
+// Exportar componente memoizado
+export default Dashboard;

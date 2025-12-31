@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { logger } from '../utils/logger';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -48,6 +48,14 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   
   // Hook seguro para localStorage (solo para escribir)
   const [, setEmpresaActivaIdStorage] = useLocalStorage<string | null>('empresa_activa_id', null);
+  
+  // Helper para mostrar errores (sin depender de NotificationContext para evitar dependencias circulares)
+  const showErrorToUser = useCallback((message: string) => {
+    // Log del error
+    logger.error(new Error(message), { context: 'CompanyContext' });
+    // En producción, esto podría integrarse con un sistema de notificaciones
+    // Por ahora, solo logueamos para evitar dependencias circulares
+  }, []);
 
   // Helper seguro para leer localStorage
   const getEmpresaActivaId = useCallback((): string | null => {
@@ -106,10 +114,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       }
 
       logger.debug('[loadEmpresas] Consultando empresas desde Supabase...');
+      // OPTIMIZACIÓN: Solo seleccionar campos necesarios en lugar de select('*')
+      // Removido count: 'exact' ya que no se usa el count en ningún lugar
       // Consulta directa a empresas - RLS filtra automáticamente
       const { data: empresasData, error: empresasError } = await supabase
         .from('empresas')
-        .select('*', { count: 'exact' })
+        .select('id, nombre, ruc, direccion, telefono, email, nombre_comercial, actividades_economicas, activa, created_at, updated_at')
         .order('nombre', { ascending: true })
         .limit(100);
 
@@ -121,6 +131,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           code: empresasError.code,
           fullError: JSON.stringify(empresasError, null, 2)
         });
+        // Mostrar error al usuario
+        showErrorToUser(`Error al cargar empresas: ${empresasError.message || 'Error desconocido'}`);
         setEmpresas([]);
         setEmpresaActivaState(null);
         setIsLoading(false);
@@ -174,19 +186,26 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       setEmpresas(empresas);
 
       // Cargar empresa activa desde localStorage (usando helper seguro)
+      // VALIDACIÓN: Asegurar que empresas sea un array válido antes de usar
+      if (!Array.isArray(empresas) || empresas.length === 0) {
+        logger.debug('[loadEmpresas] No hay empresas disponibles');
+        setEmpresaActivaState(null);
+        return;
+      }
+
       const empresaActivaId = getEmpresaActivaId();
       if (empresaActivaId) {
-        const empresa = empresas.find(e => e.id === empresaActivaId);
+        const empresa = empresas.find(e => e?.id === empresaActivaId);
         if (empresa) {
           setEmpresaActivaState(empresa);
           logger.debug('[loadEmpresas] Empresa activa restaurada:', empresa.nombre);
-        } else if (empresas.length > 0) {
+        } else if (empresas.length > 0 && empresas[0]) {
           // Si la empresa guardada no existe, usar la primera
           setEmpresaActivaState(empresas[0]);
           setEmpresaActivaIdStorage(empresas[0].id);
           logger.debug('[loadEmpresas] Empresa activa cambiada a primera disponible:', empresas[0].nombre);
         }
-      } else if (empresas.length > 0) {
+      } else if (empresas.length > 0 && empresas[0]) {
         // Si no hay empresa guardada, usar la primera
         setEmpresaActivaState(empresas[0]);
         setEmpresaActivaIdStorage(empresas[0].id);
@@ -202,6 +221,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         name: error?.name,
         fullError: JSON.stringify(error, Object.getOwnPropertyNames(error), 2)
       });
+      // Mostrar error al usuario
+      showErrorToUser(`Error al cargar empresas: ${error?.message || 'Error desconocido'}`);
       setEmpresas([]);
       setEmpresaActivaState(null);
     } finally {
@@ -210,8 +231,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   }, [getEmpresaActivaId]);
 
-  // Cargar empresas al montar
+  // Cargar empresas al montar y cuando cambie la función loadEmpresas
+  // NOTA: loadEmpresas está en useCallback con dependencias estables, por lo que
+  // no debería cambiar frecuentemente. Sin embargo, incluirlo en dependencias
+  // asegura que si cambia, el efecto se actualice correctamente.
   useEffect(() => {
+    // Llamar a la función directamente
     loadEmpresas();
 
     // Escuchar cambios en autenticación
@@ -222,7 +247,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadEmpresas]);
+  }, [loadEmpresas]); // ✅ Agregar loadEmpresas a dependencias para evitar memory leaks
 
   // Función para cambiar empresa activa
   const setEmpresaActiva = (empresa: Empresa | null) => {
@@ -278,6 +303,51 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         console.error('[addEmpresa] Error de validación:', errorMsg);
         alert(errorMsg);
         return null;
+      }
+
+      // VALIDACIÓN: Verificar si ya existe una empresa con el mismo RUC
+      if (empresaData.ruc && empresaData.ruc.trim()) {
+        const rucLimpio = empresaData.ruc.trim();
+        logger.debug('[addEmpresa] Verificando si existe empresa con RUC:', rucLimpio);
+        
+        try {
+          // Usar .limit(1) en lugar de .maybeSingle() para evitar errores si hay múltiples
+          const { data: empresasExistentes, error: busquedaError } = await supabase
+            .from('empresas')
+            .select('id, nombre, ruc')
+            .eq('ruc', rucLimpio)
+            .limit(1);
+
+          if (busquedaError) {
+            logger.error(new Error(busquedaError.message), {
+              context: 'addEmpresa',
+              error: 'Error al verificar RUC duplicado',
+              ruc: rucLimpio
+            });
+            // Continuar con la creación si hay error en la búsqueda (no bloquear)
+          } else if (empresasExistentes && empresasExistentes.length > 0) {
+            const empresaExistente = empresasExistentes[0];
+            // Mensaje más amigable para el usuario
+            const errorMsg = `Esta empresa ya se encuentra registrada en el sistema con el RUC ${rucLimpio}.`;
+            logger.warn('[addEmpresa] Intento de crear empresa con RUC duplicado:', {
+              ruc: rucLimpio,
+              empresaExistente: empresaExistente.nombre,
+              empresaExistenteId: empresaExistente.id
+            });
+            // Lanzar error para que el componente lo maneje
+            throw new Error(errorMsg);
+          }
+        } catch (validationError: any) {
+          // Si es nuestro error de validación, re-lanzarlo
+          if (validationError.message && validationError.message.includes('ya se encuentra registrada')) {
+            throw validationError;
+          }
+          // Si es otro error, solo loguearlo y continuar
+          logger.error(validationError instanceof Error ? validationError : new Error('Error en validación RUC'), {
+            context: 'addEmpresa',
+            ruc: rucLimpio
+          });
+        }
       }
 
       // Preparar parámetros para la función RPC

@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '../../lib/supabase-server';
+import { logger } from '../../utils/logger';
 
 /**
  * Server Action para verificar y corregir el rol de administrador de un usuario
@@ -48,10 +49,10 @@ export async function fixAdminRole(email: string) {
       };
     }
 
-    console.log('✅ Usuario encontrado:', {
-      id: targetUser.id,
-      email: targetUser.email,
-      user_metadata: targetUser.user_metadata,
+    logger.debug('Usuario encontrado', {
+      context: 'fixAdminRole',
+      userId: targetUser.id,
+      email: targetUser.email
     });
 
     // 2. Verificar/actualizar en la tabla profiles
@@ -90,7 +91,10 @@ export async function fixAdminRole(email: string) {
       }
 
       profileUpdated = true;
-      console.log('✅ Perfil creado con rol Administrador');
+      logger.debug('Perfil creado con rol Administrador', {
+        context: 'fixAdminRole',
+        userId: targetUser.id
+      });
     } else if (profile) {
       // Perfil existe, verificar y actualizar si es necesario
       const currentRole = profile.rol || profile.role || '';
@@ -123,9 +127,15 @@ export async function fixAdminRole(email: string) {
         }
 
         profileUpdated = true;
-        console.log('✅ Perfil actualizado con rol Administrador');
+        logger.debug('Perfil actualizado con rol Administrador', {
+          context: 'fixAdminRole',
+          userId: targetUser.id
+        });
       } else {
-        console.log('ℹ️ El perfil ya tiene rol de administrador');
+        logger.debug('El perfil ya tiene rol de administrador', {
+          context: 'fixAdminRole',
+          userId: targetUser.id
+        });
       }
     }
 
@@ -157,9 +167,15 @@ export async function fixAdminRole(email: string) {
       }
 
       authUpdated = true;
-      console.log('✅ user_metadata actualizado con rol Administrador');
+      logger.debug('user_metadata actualizado con rol Administrador', {
+        context: 'fixAdminRole',
+        userId: targetUser.id
+      });
     } else {
-      console.log('ℹ️ user_metadata ya tiene rol de administrador');
+      logger.debug('user_metadata ya tiene rol de administrador', {
+        context: 'fixAdminRole',
+        userId: targetUser.id
+      });
     }
 
     return {
@@ -173,7 +189,10 @@ export async function fixAdminRole(email: string) {
       },
     };
   } catch (error: any) {
-    console.error('Error inesperado al corregir rol:', error);
+    logger.error(error instanceof Error ? error : new Error('Error inesperado al corregir rol'), {
+      context: 'fixAdminRole',
+      error: error.message
+    });
     return {
       success: false,
       message: error.message || 'Error inesperado al corregir el rol',

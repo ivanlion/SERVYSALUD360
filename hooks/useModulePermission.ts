@@ -8,8 +8,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useState, useEffect, useMemo } from 'react';
+import { useUser } from '../contexts/UserContext';
+import { isSuperAdmin, isAdminUser, getEffectivePermission } from '../utils/auth-helpers';
 
 export type PermissionLevel = 'none' | 'read' | 'write';
 
@@ -36,128 +37,86 @@ interface UseModulePermissionResult {
  * <button disabled={!canWrite}>Guardar</button>
  */
 export function useModulePermission(moduleKey: string): UseModulePermissionResult {
-  const [canRead, setCanRead] = useState(false);
-  const [canWrite, setCanWrite] = useState(false);
-  const [permissionLevel, setPermissionLevel] = useState<PermissionLevel>('none');
-  const [isLoading, setIsLoading] = useState(true);
+  // OPTIMIZACIÓN: Usar UserContext en lugar de hacer consultas duplicadas a Supabase
+  const { user, profile, isLoading: isLoadingUser } = useUser();
 
-  useEffect(() => {
-    const checkPermission = async () => {
-      try {
-        // Obtener el usuario actual
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
+  // Calcular permisos desde el contexto (memoizado para evitar recálculos)
+  const permissionResult = useMemo(() => {
+    // Si aún está cargando el usuario, retornar valores por defecto
+    if (isLoadingUser || !user) {
+      return {
+        canRead: false,
+        canWrite: false,
+        permissionLevel: 'none' as PermissionLevel,
+      };
+    }
 
-        if (userError || !user) {
-          setCanRead(false);
-          setCanWrite(false);
-          setPermissionLevel('none');
-          setIsLoading(false);
-          return;
-        }
+    const userEmail = user.email || '';
+    const userRole = profile?.role || user.user_metadata?.role || user.user_metadata?.rol || '';
 
-        // Obtener el perfil del usuario
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('rol, role, permissions')
-          .eq('id', user.id)
-          .single();
+    // Verificar si es Super Admin o Admin
+    const isAdmin = isSuperAdmin(userEmail) || isAdminUser(userEmail, userRole);
 
-        if (profileError) {
-          console.error('Error al obtener perfil:', profileError);
-          setCanRead(false);
-          setCanWrite(false);
-          setPermissionLevel('none');
-          setIsLoading(false);
-          return;
-        }
+    // Si es administrador, tiene acceso total
+    if (isAdmin) {
+      return {
+        canRead: true,
+        canWrite: true,
+        permissionLevel: 'write' as PermissionLevel,
+      };
+    }
 
-        // Verificar si es administrador
-        const role = profile.rol || profile.role || '';
-        const isAdmin = role?.toLowerCase() === 'admin' || 
-                       role === 'Administrador' || 
-                       role === 'Admin' ||
-                       role?.toLowerCase() === 'administrador';
+    // Obtener el nivel de permiso del módulo desde permissions JSONB
+    const permissions = profile?.permissions || user.user_metadata?.permissions || {};
+    
+    // Mapear la clave del módulo (puede venir con guiones bajos o camelCase)
+    const normalizedKey = moduleKey.replace(/_/g, '_');
+    const camelCaseKey = moduleKey.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    
+    // Intentar obtener el permiso con diferentes formatos de clave
+    const modulePermission = permissions[normalizedKey] || 
+                            permissions[camelCaseKey] || 
+                            permissions[moduleKey] || 
+                            'none';
 
-        // Si es administrador, tiene acceso total
-        if (isAdmin) {
-          setCanRead(true);
-          setCanWrite(true);
-          setPermissionLevel('write');
-          setIsLoading(false);
-          return;
-        }
+    // Usar getEffectivePermission para considerar Super Admin
+    const effectivePermission = getEffectivePermission(
+      userEmail,
+      userRole || undefined,
+      modulePermission
+    );
 
-        // Obtener el nivel de permiso del módulo desde permissions JSONB
-        const permissions = profile.permissions || {};
-        
-        // Mapear la clave del módulo (puede venir con guiones bajos o camelCase)
-        const normalizedKey = moduleKey.replace(/_/g, '_');
-        const camelCaseKey = moduleKey.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-        
-        // Intentar obtener el permiso con diferentes formatos de clave
-        const modulePermission = permissions[normalizedKey] || 
-                                permissions[camelCaseKey] || 
-                                permissions[moduleKey] || 
-                                'none';
+    // Convertir a PermissionLevel
+    let level: PermissionLevel = 'none';
+    
+    if (typeof effectivePermission === 'boolean') {
+      // Compatibilidad con sistema anterior (boolean)
+      level = effectivePermission ? 'write' : 'none';
+    } else if (typeof effectivePermission === 'string') {
+      // Nuevo sistema (string: 'none' | 'read' | 'write')
+      level = (effectivePermission as PermissionLevel) || 'none';
+    }
 
-        // Convertir a PermissionLevel (por si viene como boolean por compatibilidad)
-        let level: PermissionLevel = 'none';
-        
-        if (typeof modulePermission === 'boolean') {
-          // Compatibilidad con sistema anterior (boolean)
-          level = modulePermission ? 'write' : 'none';
-        } else if (typeof modulePermission === 'string') {
-          // Nuevo sistema (string: 'none' | 'read' | 'write')
-          level = (modulePermission as PermissionLevel) || 'none';
-        }
+    // Validar que el nivel sea válido
+    if (!['none', 'read', 'write'].includes(level)) {
+      level = 'none';
+    }
 
-        // Validar que el nivel sea válido
-        if (!['none', 'read', 'write'].includes(level)) {
-          level = 'none';
-        }
+    // Determinar canRead y canWrite basado en el nivel
+    const canRead = level === 'read' || level === 'write';
+    const canWrite = level === 'write';
 
-        setPermissionLevel(level);
-
-        // Determinar canRead y canWrite basado en el nivel
-        switch (level) {
-          case 'write':
-            setCanRead(true);
-            setCanWrite(true);
-            break;
-          case 'read':
-            setCanRead(true);
-            setCanWrite(false);
-            break;
-          case 'none':
-          default:
-            setCanRead(false);
-            setCanWrite(false);
-            break;
-        }
-
-      } catch (error) {
-        console.error('Error al verificar permisos:', error);
-        setCanRead(false);
-        setCanWrite(false);
-        setPermissionLevel('none');
-      } finally {
-        setIsLoading(false);
-      }
+    return {
+      canRead,
+      canWrite,
+      permissionLevel: level,
     };
+  }, [user, profile, isLoadingUser, moduleKey]);
 
-    checkPermission();
-
-    // Escuchar cambios en la autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      checkPermission();
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [moduleKey]);
-
-  return { canRead, canWrite, permissionLevel, isLoading };
+  return {
+    ...permissionResult,
+    isLoading: isLoadingUser,
+  };
 }
 
 

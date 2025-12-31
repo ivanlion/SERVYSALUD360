@@ -34,24 +34,46 @@ export default function GestionEmpresas() {
 
   const handleCreate = async () => {
     if (!formData.nombre.trim()) {
-      alert('El nombre de la empresa es requerido');
+      showError('El nombre de la empresa es requerido');
       return;
     }
 
-    const nuevaEmpresa = await addEmpresa({
-      nombre: formData.nombre.trim(),
-      ruc: formData.ruc.trim() || undefined,
-      direccion: formData.direccion.trim() || undefined,
-      telefono: formData.telefono.trim() || undefined,
-      email: formData.email.trim() || undefined,
-      activa: true,
-    });
+    try {
+      const nuevaEmpresa = await addEmpresa({
+        nombre: formData.nombre.trim(),
+        ruc: formData.ruc.trim() || undefined,
+        direccion: formData.direccion.trim() || undefined,
+        telefono: formData.telefono.trim() || undefined,
+        email: formData.email.trim() || undefined,
+        nombreComercial: formData.nombreComercial.trim() || undefined,
+        actividadesEconomicas: formData.actividadesEconomicas.trim() || undefined,
+        activa: true,
+      });
 
-    if (nuevaEmpresa) {
-      setIsCreating(false);
-      setFormData({ nombre: '', ruc: '', direccion: '', telefono: '', email: '', nombreComercial: '', actividadesEconomicas: '' });
-    } else {
-      alert('Error al crear la empresa. Por favor, intenta nuevamente.');
+      if (nuevaEmpresa) {
+        showSuccess('Empresa creada exitosamente');
+        setIsCreating(false);
+        setStep('ruc');
+        setFormData({ nombre: '', ruc: '', direccion: '', telefono: '', email: '', nombreComercial: '', actividadesEconomicas: '' });
+        setRucError(null);
+      } else {
+        showError('Error al crear la empresa. Por favor, intenta nuevamente.');
+      }
+    } catch (error: any) {
+      // Manejar error de RUC duplicado u otros errores
+      const errorMessage = error.message || 'Error al crear la empresa. Por favor, intenta nuevamente.';
+      
+      // Si es un error de RUC duplicado, mostrar mensaje amigable
+      if (errorMessage.includes('ya se encuentra registrada')) {
+        showError('Esta empresa ya se encuentra registrada en el sistema. Por favor, verifica el RUC o selecciona la empresa existente.');
+      } else {
+        showError(errorMessage);
+      }
+      
+      logger.error(error instanceof Error ? error : new Error(errorMessage), {
+        context: 'handleCreate',
+        formData: { ...formData, ruc: formData.ruc ? '***' : undefined } // No loguear RUC completo por seguridad
+      });
     }
   };
 
@@ -70,8 +92,23 @@ export default function GestionEmpresas() {
 
   const handleUpdate = async (id: string) => {
     if (!formData.nombre.trim()) {
-      alert('El nombre de la empresa es requerido');
+      showError('El nombre de la empresa es requerido');
       return;
+    }
+
+    // VALIDACIÓN: Verificar si el RUC ya existe en otra empresa (solo si se está editando el RUC)
+    if (formData.ruc && formData.ruc.trim()) {
+      const rucLimpio = formData.ruc.trim();
+      const empresaActual = empresas.find(e => e.id === id);
+      
+      // Solo validar si el RUC cambió o si la empresa actual no tiene RUC
+      if (!empresaActual?.ruc || empresaActual.ruc !== rucLimpio) {
+        const empresaConMismoRuc = empresas.find(e => e.id !== id && e.ruc === rucLimpio);
+        if (empresaConMismoRuc) {
+          showError(`Ya existe otra empresa con el RUC ${rucLimpio}.\n\nEmpresa existente: ${empresaConMismoRuc.nombre}`);
+          return;
+        }
+      }
     }
 
     const success = await updateEmpresa(id, {
@@ -85,10 +122,13 @@ export default function GestionEmpresas() {
     });
 
     if (success) {
+      showSuccess('Empresa actualizada exitosamente');
       setEditingId(null);
       setFormData({ nombre: '', ruc: '', direccion: '', telefono: '', email: '', nombreComercial: '', actividadesEconomicas: '' });
+      setStep('ruc');
+      setRucError(null);
     } else {
-      alert('Error al actualizar la empresa. Por favor, intenta nuevamente.');
+      showError('Error al actualizar la empresa. Por favor, intenta nuevamente.');
     }
   };
 

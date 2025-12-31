@@ -16,3 +16,5 @@ Archivo con extensión inválida para probar validación de tipo de archivo.
 ## Nota:
 Los tests crearán estos archivos automáticamente si no existen, pero es recomendable tener archivos reales para pruebas más realistas.
 
+
+

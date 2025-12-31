@@ -9,8 +9,8 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import * as XLSX from 'xlsx';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { utils, writeFile } from 'xlsx';
 import { CaseData } from '../types';
 import { supabase } from '../lib/supabase';
 import { useCompany } from '../contexts/CompanyContext';
@@ -75,11 +75,23 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 100;
   
+  // OPTIMIZACIÓN: Paginación del lado del cliente para listas grandes (virtualización simple)
+  // Solo renderizar los casos visibles en lugar de todos a la vez para mejorar rendimiento
+  const CLIENT_PAGE_SIZE = 50; // Mostrar 50 casos a la vez en la UI
+  const [clientPage, setClientPage] = useState(1); // Página del lado del cliente
+  
   // Usar React Query para cachear casos
   const { data: casesData, isLoading, error: queryError } = useWorkModifiedCases(currentPage, PAGE_SIZE);
   const cases = casesData?.cases || [];
   const totalCount = casesData?.totalCount || 0;
   const error = queryError ? (queryError.message || 'Error al cargar los datos') : null;
+  
+  // Mostrar notificación de error si hay un error en la consulta
+  useEffect(() => {
+    if (error) {
+      showError(`Error al cargar casos: ${error}`);
+    }
+  }, [error, showError]);
   
   // Debounce del término de búsqueda (300ms de delay)
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -91,17 +103,40 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
     });
   }, [queryClient, empresaActiva?.id]);
 
+  // OPTIMIZACIÓN: Eliminar memoización redundante
+  // cases ya es estable desde React Query, no necesita memoización adicional
+  const stableCases = cases;
+
   // Filter Logic: Search by Name, DNI, or Company (memoizado para mejor rendimiento)
   const filteredCases = useMemo(() => {
     if (!debouncedSearchTerm.trim()) {
-      return cases;
+      return stableCases;
     }
     const term = debouncedSearchTerm.toLowerCase();
-    return cases.filter(c => {
+    return stableCases.filter(c => {
       const searchString = `${c.trabajadorNombre} ${c.dni} ${c.empresa}`.toLowerCase();
       return searchString.includes(term);
     });
-  }, [cases, debouncedSearchTerm]);
+  }, [stableCases, debouncedSearchTerm]);
+
+  // OPTIMIZACIÓN: Paginación del lado del cliente para mejorar rendimiento con listas grandes
+  // Solo renderizar los casos visibles en lugar de todos a la vez
+  const shouldUseClientPagination = filteredCases.length > CLIENT_PAGE_SIZE;
+  const displayedCases = useMemo(() => {
+    if (!shouldUseClientPagination) {
+      return filteredCases; // Mostrar todos si son pocos
+    }
+    const startIndex = (clientPage - 1) * CLIENT_PAGE_SIZE;
+    const endIndex = startIndex + CLIENT_PAGE_SIZE;
+    return filteredCases.slice(startIndex, endIndex);
+  }, [filteredCases, clientPage, shouldUseClientPagination, CLIENT_PAGE_SIZE]);
+
+  const totalClientPages = Math.ceil(filteredCases.length / CLIENT_PAGE_SIZE);
+  
+  // Resetear página del cliente cuando cambia el filtro
+  useEffect(() => {
+    setClientPage(1);
+  }, [debouncedSearchTerm]);
 
   // Helper to extract numeric days
   const parseDays = (str?: string) => {
@@ -110,19 +145,34 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
   };
 
   // Helper to get day breakdown per case
-  const getCaseDaysInfo = (c: CaseData) => {
-    const initial = parseDays(c.assessment?.indicacionDuracion);
-    const added = (c.reevaluaciones || []).reduce((sum, r) => sum + (r.diasAdicionales || 0), 0);
+  // ✅ VALIDACIÓN DEFENSIVA: Validar null/undefined antes de acceder a propiedades
+  const getCaseDaysInfo = (c: CaseData | null | undefined) => {
+    // Validar que el caso existe
+    if (!c) {
+      return { initial: 0, added: 0, total: 0 };
+    }
+    
+    const initial = parseDays(c?.assessment?.indicacionDuracion || '0');
+    const reevaluaciones = Array.isArray(c?.reevaluaciones) ? c.reevaluaciones : [];
+    const added = reevaluaciones.reduce((sum, r) => {
+      const dias = typeof r?.diasAdicionales === 'number' ? r.diasAdicionales : 0;
+      return sum + dias;
+    }, 0);
     const total = initial + added;
     return { initial, added, total };
   };
 
   // Stats Calculation based on FILTERED data (memoizado)
+  // VALIDACIÓN: Agregar validación defensiva
   const stats = useMemo(() => {
+    if (!Array.isArray(filteredCases)) {
+      return { total: 0, active: 0, closed: 0, accumulatedDays: 0 };
+    }
     const total = filteredCases.length;
-    const active = filteredCases.filter(c => c.status === 'ACTIVO').length;
-    const closed = filteredCases.filter(c => c.status === 'CERRADO').length;
+    const active = filteredCases.filter(c => c?.status === 'ACTIVO').length;
+    const closed = filteredCases.filter(c => c?.status === 'CERRADO').length;
     const accumulatedDays = filteredCases.reduce((acc, c) => {
+      if (!c) return acc;
       return acc + getCaseDaysInfo(c).total;
     }, 0);
     return { total, active, closed, accumulatedDays };
@@ -130,8 +180,8 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
 
   const { total: totalCases, active: activeCases, closed: closedCases, accumulatedDays: globalAccumulatedDays } = stats;
 
-  // Helper to format date from YYYY-MM-DD to DD/MM/YYYY
-  const formatDate = (dateString: string) => {
+  // Helper to format date from YYYY-MM-DD to DD/MM/YYYY (memoizado)
+  const formatDate = useCallback((dateString: string) => {
     if (!dateString) return '-';
     const parts = dateString.split('-');
     if (parts.length === 3) {
@@ -139,10 +189,10 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
       return `${day}/${month}/${year}`;
     }
     return dateString;
-  };
+  }, []);
 
-  // Helper to calculate end date based on TOTAL days
-  const calculateEndDate = (startDateStr: string, totalDays: number) => {
+  // Helper to calculate end date based on TOTAL days (memoizado)
+  const calculateEndDate = useCallback((startDateStr: string, totalDays: number) => {
     if (!startDateStr || totalDays === 0) return '-';
 
     const parts = startDateStr.split('-');
@@ -160,14 +210,16 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
     const endDay = String(date.getDate()).padStart(2, '0');
 
     return `${endYear}-${endMonth}-${endDay}`;
-  };
+  }, []);
 
   /**
    * Exporta los casos filtrados a Excel con dos hojas:
    * 1. Casos de Trabajo Modificado
    * 2. Estadísticas
+   * 
+   * OPTIMIZACIÓN: Procesa en chunks para evitar bloqueo de UI con muchos datos
    */
-  const exportToExcel = useCallback(() => {
+  const exportToExcel = useCallback(async () => {
     try {
       // Validar que hay datos para exportar
       if (filteredCases.length === 0) {
@@ -179,47 +231,129 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
         totalCases: filteredCases.length
       });
 
-      // Preparar datos de casos para Excel
-      const casosData = filteredCases.map(caso => {
-        const { initial, added, total } = getCaseDaysInfo(caso);
-        const endDateISO = calculateEndDate(caso.assessment?.indicacionInicio || '', total);
-        const endDateFormatted = endDateISO !== '-' ? formatDate(endDateISO) : '';
-        const startDateFormatted = formatDate(caso.assessment?.indicacionInicio || '');
-        
-        const primaryDiagnosis = caso.assessment?.diagnosticos?.[0]?.descripcion || 'Sin diagnóstico';
-        const primaryCie10 = caso.assessment?.diagnosticos?.[0]?.cie10 || '';
-        const diagnosticoCompleto = primaryCie10 
-          ? `${primaryDiagnosis} (${primaryCie10})`
-          : primaryDiagnosis;
+      // Mostrar indicador de progreso si hay muchos casos (>1000)
+      const CHUNK_SIZE = 1000;
+      const needsChunking = filteredCases.length > CHUNK_SIZE;
+      
+      if (needsChunking) {
+        showSuccess(`Procesando ${filteredCases.length} casos en lotes...`);
+      }
 
-        // Determinar tipo de modificación basado en restricciones
-        // Las restricciones pueden venir de diferentes fuentes, usar tipoEvento como base
-        const tipoModificacion = caso.tipoEvento || 'No especificado';
+      // Preparar datos de casos para Excel (con chunking si es necesario)
+      let casosData: any[] = [];
+      
+      if (needsChunking) {
+        // Procesar en chunks para evitar bloqueo de UI
+        for (let i = 0; i < filteredCases.length; i += CHUNK_SIZE) {
+          const chunk = filteredCases.slice(i, i + CHUNK_SIZE);
+          const chunkData = chunk
+            .filter(caso => caso != null) // VALIDACIÓN: Filtrar casos nulos
+            .map(caso => {
+              // VALIDACIÓN: Validar que caso existe antes de acceder a propiedades
+              if (!caso) return null;
+              const { initial, added, total } = getCaseDaysInfo(caso);
+              const indicacionInicio = caso?.assessment?.indicacionInicio || '';
+              const endDateISO = calculateEndDate(indicacionInicio, total);
+              const endDateFormatted = endDateISO !== '-' ? formatDate(endDateISO) : '';
+              const startDateFormatted = formatDate(indicacionInicio);
+              
+              // VALIDACIÓN: Validar que diagnosticos existe y es un array
+              const diagnosticos = Array.isArray(caso?.assessment?.diagnosticos) 
+                ? caso.assessment.diagnosticos 
+                : [];
+              const primaryDiagnosis = diagnosticos[0]?.descripcion || 'Sin diagnóstico';
+              const primaryCie10 = diagnosticos[0]?.cie10 || '';
+              const diagnosticoCompleto = primaryCie10 
+                ? `${primaryDiagnosis} (${primaryCie10})`
+                : primaryDiagnosis;
 
-        // Observaciones combinadas
-        const observaciones = [
-          caso.comentariosSupervisor,
-          caso.assessment?.medicoNombre ? `Médico: ${caso.assessment.medicoNombre}` : '',
-          caso.assessment?.alertaFarmacologica ? `Alerta: ${caso.assessment.alertaFarmacologica}` : '',
-        ].filter(Boolean).join('; ');
+            // Determinar tipo de modificación basado en restricciones
+            // Las restricciones pueden venir de diferentes fuentes, usar tipoEvento como base
+            const tipoModificacion = caso.tipoEvento || 'No especificado';
 
-        return {
-          'Fecha de Registro': formatDate(caso.fecha) || '-',
-          'DNI': caso.dni || '-',
-          'Trabajador': caso.trabajadorNombre || '-',
-          'Empresa': caso.empresa || '-',
-          'Puesto de Trabajo': caso.puesto || '-',
-          'Diagnóstico': diagnosticoCompleto,
-          'Tipo de Modificación': tipoModificacion,
-          'Fecha de Inicio': startDateFormatted || '-',
-          'Fecha de Fin': endDateFormatted || '-',
-          'Días Iniciales': initial,
-          'Días Adicionales': added,
-          'Total Días': total,
-          'Estado': caso.status || '-',
-          'Observaciones': observaciones || '-',
-        };
-      });
+            // Observaciones combinadas
+            const observaciones = [
+              caso.comentariosSupervisor,
+              caso.assessment?.medicoNombre ? `Médico: ${caso.assessment.medicoNombre}` : '',
+              caso.assessment?.alertaFarmacologica ? `Alerta: ${caso.assessment.alertaFarmacologica}` : '',
+            ].filter(Boolean).join('; ');
+
+            return {
+              'Fecha de Registro': formatDate(caso.fecha) || '-',
+              'DNI': caso.dni || '-',
+              'Trabajador': caso.trabajadorNombre || '-',
+              'Empresa': caso.empresa || '-',
+              'Puesto de Trabajo': caso.puesto || '-',
+              'Diagnóstico': diagnosticoCompleto,
+              'Tipo de Modificación': tipoModificacion,
+              'Fecha de Inicio': startDateFormatted || '-',
+              'Fecha de Fin': endDateFormatted || '-',
+              'Días Iniciales': initial,
+              'Días Adicionales': added,
+              'Total Días': total,
+              'Estado': caso.status || '-',
+              'Observaciones': observaciones || '-',
+            };
+          });
+          // VALIDACIÓN: Filtrar valores nulos antes de agregar
+          casosData = [...casosData, ...chunkData.filter(item => item != null)];
+          
+          // Permitir que el navegador procese otros eventos entre chunks
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      } else {
+        // Procesar todos de una vez si son pocos casos
+        casosData = filteredCases
+          .filter(caso => caso != null) // VALIDACIÓN: Filtrar casos nulos
+          .map(caso => {
+            // VALIDACIÓN: Validar que caso existe antes de acceder a propiedades
+            if (!caso) return null;
+            const { initial, added, total } = getCaseDaysInfo(caso);
+            const indicacionInicio = caso?.assessment?.indicacionInicio || '';
+            const endDateISO = calculateEndDate(indicacionInicio, total);
+            const endDateFormatted = endDateISO !== '-' ? formatDate(endDateISO) : '';
+            const startDateFormatted = formatDate(indicacionInicio);
+            
+            // VALIDACIÓN: Validar que diagnosticos existe y es un array
+            const diagnosticos = Array.isArray(caso?.assessment?.diagnosticos) 
+              ? caso.assessment.diagnosticos 
+              : [];
+            const primaryDiagnosis = diagnosticos[0]?.descripcion || 'Sin diagnóstico';
+            const primaryCie10 = diagnosticos[0]?.cie10 || '';
+            const diagnosticoCompleto = primaryCie10 
+              ? `${primaryDiagnosis} (${primaryCie10})`
+              : primaryDiagnosis;
+
+          // Determinar tipo de modificación basado en restricciones
+          // Las restricciones pueden venir de diferentes fuentes, usar tipoEvento como base
+          const tipoModificacion = caso.tipoEvento || 'No especificado';
+
+          // Observaciones combinadas
+          const observaciones = [
+            caso.comentariosSupervisor,
+            caso.assessment?.medicoNombre ? `Médico: ${caso.assessment.medicoNombre}` : '',
+            caso.assessment?.alertaFarmacologica ? `Alerta: ${caso.assessment.alertaFarmacologica}` : '',
+          ].filter(Boolean).join('; ');
+
+          return {
+            'Fecha de Registro': formatDate(caso.fecha) || '-',
+            'DNI': caso.dni || '-',
+            'Trabajador': caso.trabajadorNombre || '-',
+            'Empresa': caso.empresa || '-',
+            'Puesto de Trabajo': caso.puesto || '-',
+            'Diagnóstico': diagnosticoCompleto,
+            'Tipo de Modificación': tipoModificacion,
+            'Fecha de Inicio': startDateFormatted || '-',
+            'Fecha de Fin': endDateFormatted || '-',
+            'Días Iniciales': initial,
+            'Días Adicionales': added,
+            'Total Días': total,
+            'Estado': caso.status || '-',
+            'Observaciones': observaciones || '-',
+          };
+        })
+        .filter(item => item != null); // VALIDACIÓN: Filtrar valores nulos
+      }
 
       // Preparar datos de estadísticas
       const statsData = [
@@ -232,11 +366,15 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
       ];
 
       // Agregar distribución por empresa
+      // VALIDACIÓN: Validar que filteredCases es un array válido
       const empresasMap = new Map<string, number>();
-      filteredCases.forEach(caso => {
-        const empresa = caso.empresa || 'Sin empresa';
-        empresasMap.set(empresa, (empresasMap.get(empresa) || 0) + 1);
-      });
+      if (Array.isArray(filteredCases)) {
+        filteredCases.forEach(caso => {
+          if (!caso) return;
+          const empresa = caso.empresa || 'Sin empresa';
+          empresasMap.set(empresa, (empresasMap.get(empresa) || 0) + 1);
+        });
+      }
       
       statsData.push({ 'Métrica': '', 'Valor': '' }); // Separador
       statsData.push({ 'Métrica': 'Distribución por Empresa', 'Valor': '' });
@@ -245,11 +383,15 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
       });
 
       // Agregar distribución por tipo de evento
+      // VALIDACIÓN: Validar que filteredCases es un array válido
       const tiposMap = new Map<string, number>();
-      filteredCases.forEach(caso => {
-        const tipo = caso.tipoEvento || 'Sin tipo';
-        tiposMap.set(tipo, (tiposMap.get(tipo) || 0) + 1);
-      });
+      if (Array.isArray(filteredCases)) {
+        filteredCases.forEach(caso => {
+          if (!caso) return;
+          const tipo = caso.tipoEvento || 'Sin tipo';
+          tiposMap.set(tipo, (tiposMap.get(tipo) || 0) + 1);
+        });
+      }
       
       statsData.push({ 'Métrica': '', 'Valor': '' }); // Separador
       statsData.push({ 'Métrica': 'Distribución por Tipo de Evento', 'Valor': '' });
@@ -258,20 +400,28 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
       });
 
       // Crear workbook
-      const wb = XLSX.utils.book_new();
+      const wb = utils.book_new();
+      
+      // VALIDACIÓN: Verificar que hay datos antes de crear la hoja
+      if (casosData.length === 0) {
+        throw new Error('No hay datos válidos para exportar');
+      }
       
       // Agregar hoja de casos
-      const wsCasos = XLSX.utils.json_to_sheet(casosData);
-      XLSX.utils.book_append_sheet(wb, wsCasos, 'Casos de Trabajo Modificado');
+      const wsCasos = utils.json_to_sheet(casosData);
+      utils.book_append_sheet(wb, wsCasos, 'Casos de Trabajo Modificado');
       
       // Agregar hoja de estadísticas
-      const wsStats = XLSX.utils.json_to_sheet(statsData);
-      XLSX.utils.book_append_sheet(wb, wsStats, 'Estadísticas');
+      const wsStats = utils.json_to_sheet(statsData);
+      utils.book_append_sheet(wb, wsStats, 'Estadísticas');
       
       // Ajustar ancho de columnas para hoja de casos
-      const maxWidth = 30;
-      const columnWidths = Object.keys(casosData[0] || {}).map(() => ({ wch: maxWidth }));
-      wsCasos['!cols'] = columnWidths;
+      // VALIDACIÓN: Verificar que hay al menos un elemento
+      if (casosData.length > 0 && casosData[0]) {
+        const maxWidth = 30;
+        const columnWidths = Object.keys(casosData[0]).map(() => ({ wch: maxWidth }));
+        wsCasos['!cols'] = columnWidths;
+      }
       
       // Ajustar ancho de columnas para hoja de estadísticas
       wsStats['!cols'] = [{ wch: 35 }, { wch: 20 }];
@@ -281,7 +431,7 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
       const fileName = `casos_trabajo_modificado_${timestamp}.xlsx`;
       
       // Generar archivo
-      XLSX.writeFile(wb, fileName);
+      writeFile(wb, fileName);
       
       // Mostrar notificación de éxito
       showSuccess(`Archivo Excel generado exitosamente: ${fileName}`);
@@ -311,7 +461,7 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
 
     if (!caseData.supabaseId || caseData.supabaseId === null || caseData.supabaseId === undefined) {
       const errorMsg = 'Error: No se puede eliminar este registro. Falta el ID de la base de datos.';
-      console.error('❌', errorMsg, caseData);
+      logger.error(new Error(errorMsg), { caseData, context: 'WorkModifiedDashboard' });
       alert(errorMsg);
       return;
     }
@@ -335,12 +485,15 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
       invalidateCasesCache();
 
     } catch (err: any) {
-      console.error('❌ Error al eliminar registro:', err);
+      logger.error(err instanceof Error ? err : new Error('Error al eliminar registro'), {
+        context: 'WorkModifiedDashboard',
+        caseId: caseData.id
+      });
       showError(`Error al eliminar el registro: ${err.message || 'Error desconocido'}`);
     } finally {
       setDeletingId(null);
     }
-  }, []);
+  }, [invalidateCasesCache, showSuccess, showError]);
 
   // Mostrar estado de carga
   if (isLoading) {
@@ -520,7 +673,7 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
           <>
             {/* Vista de Cards en Móvil */}
             <div className="md:hidden space-y-4 px-2">
-              {filteredCases.map((c) => {
+              {displayedCases.map((c) => {
                 const { initial, added, total } = getCaseDaysInfo(c);
                 const endDateISO = calculateEndDate(c.assessment?.indicacionInicio || '', total);
                 const endDateFormatted = formatDate(endDateISO);
@@ -635,7 +788,7 @@ export default function WorkModifiedDashboard({ onEdit, onCreate }: WorkModified
 
               {/* Cuerpo de Tabla - Mismo estilo que Administración */}
               <tbody className="divide-y divide-gray-100">
-                {filteredCases.map((c) => {
+                {displayedCases.map((c) => {
                   const { initial, added, total } = getCaseDaysInfo(c);
                   const endDateISO = calculateEndDate(c.assessment?.indicacionInicio || '', total);
                   const endDateFormatted = formatDate(endDateISO);

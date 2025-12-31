@@ -107,7 +107,7 @@ export async function handleTrabajadoresTool(
       
       const { data, error } = await supabase
         .from('registros_trabajadores')
-        .select('*')
+        .select('id, fecha_registro, apellidos_nombre, dni_ce_pas, telefono_trabajador, sexo, jornada_laboral, puesto_trabajo, empresa, gerencia, supervisor_responsable, telf_contacto_supervisor, empresa_id, created_at')
         .eq('dni_ce_pas', dni)
         .single();
       
