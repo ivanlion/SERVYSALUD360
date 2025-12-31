@@ -379,8 +379,249 @@ export const INITIAL_CASE: CaseData = {
   reevaluaciones: []
 };
 
+// ============================================
+// NUEVOS TIPOS - SISTEMA INTEGRAL DE SST
+// ============================================
 
+// Tipos base
+export type NivelRiesgo = 'Bajo' | 'Medio' | 'Alto' | 'Muy Alto';
+export type TipoDocumento = 'DNI' | 'CE' | 'Pasaporte';
+export type EstadoLaboral = 'Activo' | 'Cesado' | 'Suspendido' | 'Licencia';
+export type EstadoPlan = 'En elaboración' | 'Aprobado' | 'En ejecución' | 'Cerrado';
+export type EstadoActividad = 'Pendiente' | 'En proceso' | 'Completada' | 'Cancelada';
 
+// Sedes
+export interface SedeEmpresa {
+  id: string;
+  empresa_id: string;
+  nombre_sede: string;
+  tipo_sede?: string;
+  direccion?: string;
+  distrito?: string;
+  responsable_sede?: string;
+  telefono?: string;
+  estado: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
 
+// Trabajadores
+export interface Trabajador {
+  id: string;
+  empresa_id: string;
+  sede_id?: string;
+  
+  tipo_documento: TipoDocumento;
+  numero_documento: string;
+  apellido_paterno: string;
+  apellido_materno: string;
+  nombres: string;
+  
+  fecha_nacimiento?: Date;
+  sexo?: 'Masculino' | 'Femenino';
+  telefono_personal?: string;
+  email_personal?: string;
+  
+  puesto_trabajo: string;
+  area_trabajo?: string;
+  fecha_ingreso?: Date;
+  
+  estado_laboral: EstadoLaboral;
+  registro_trabajo_modificado_id?: string;
+  
+  created_at: Date;
+  updated_at: Date;
+}
+
+// Helper para nombre completo
+export const getNombreCompleto = (trabajador: Trabajador): string => {
+  return `${trabajador.apellido_paterno} ${trabajador.apellido_materno} ${trabajador.nombres}`;
+};
+
+// Plan Anual SST
+export interface PlanAnualSST {
+  id: string;
+  empresa_id: string;
+  anio: number;
+  objetivo_general?: string;
+  presupuesto_total?: number;
+  estado: EstadoPlan;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ActividadPlanSST {
+  id: string;
+  plan_id: string;
+  nombre_actividad: string;
+  mes_programado?: number;
+  responsable?: string;
+  estado: EstadoActividad;
+  created_at: Date;
+}
+
+// Ausentismo
+export type TipoAusentismo = 
+  | 'Descanso médico'
+  | 'Licencia con goce de haber'
+  | 'Licencia sin goce de haber'
+  | 'Permiso'
+  | 'Vacaciones'
+  | 'Accidente de trabajo'
+  | 'Enfermedad ocupacional'
+  | 'Maternidad'
+  | 'Paternidad'
+  | 'Otros';
+
+export interface AusentismoLaboral {
+  id: string;
+  trabajador_id: string;
+  empresa_id: string;
+  tipo_ausentismo: TipoAusentismo;
+  fecha_inicio: Date;
+  fecha_fin?: Date;
+  dias_ausencia?: number;
+  motivo?: string;
+  estado: 'Activo' | 'Finalizado';
+  created_at: Date;
+}
+
+// Capacitaciones
+export interface ProgramaCapacitacionSST {
+  id: string;
+  empresa_id: string;
+  anio: number;
+  objetivo_general?: string;
+  estado: 'Vigente' | 'Cerrado';
+  created_at: Date;
+}
+
+export interface CapacitacionSST {
+  id: string;
+  programa_id: string;
+  empresa_id: string;
+  nombre_curso: string;
+  tipo_capacitacion?: string;
+  fecha_programada?: Date;
+  estado: 'Programada' | 'Ejecutada' | 'Cancelada';
+  created_at: Date;
+}
+
+export interface AsistenciaCapacitacion {
+  id: string;
+  capacitacion_id: string;
+  trabajador_id: string;
+  asistio: boolean;
+  aprobo: boolean;
+  created_at: Date;
+}
+
+// Comité SST
+export interface ComiteSST {
+  id: string;
+  empresa_id: string;
+  nombre_comite: string;
+  periodo_inicio: Date;
+  periodo_fin: Date;
+  estado: 'Activo' | 'Finalizado';
+  created_at: Date;
+}
+
+export interface MiembroComiteSST {
+  id: string;
+  comite_id: string;
+  trabajador_id: string;
+  cargo_comite?: string;
+  fecha_inicio: Date;
+  estado: 'Activo' | 'Cesado';
+  created_at: Date;
+}
+
+// Accidentes e Incidentes
+export type TipoEvento = 
+  | 'Accidente de trabajo'
+  | 'Accidente leve'
+  | 'Accidente incapacitante'
+  | 'Accidente mortal'
+  | 'Incidente peligroso'
+  | 'Incidente';
+
+export interface AccidenteIncidente {
+  id: string;
+  empresa_id: string;
+  trabajador_id: string;
+  tipo_evento: TipoEvento;
+  fecha_ocurrencia: Date;
+  descripcion_evento: string;
+  estado: 'Reportado' | 'En investigación' | 'Cerrado';
+  created_at: Date;
+}
+
+// Inspecciones
+export interface InspeccionSST {
+  id: string;
+  empresa_id: string;
+  tipo_inspeccion?: string;
+  fecha_realizacion: Date;
+  inspector_principal?: string;
+  estado: 'Programada' | 'Completada';
+  created_at: Date;
+}
+
+// Indicadores
+export interface IndicadorSST {
+  id: string;
+  empresa_id: string;
+  periodo: string; // YYYY-MM
+  total_trabajadores?: number;
+  numero_accidentes_trabajo: number;
+  dias_perdidos_total: number;
+  created_at: Date;
+}
+
+// Catálogo de Peligros
+export interface CatalogoPeligro {
+  id: string;
+  codigo: string;
+  tipo_peligro: string;
+  nombre_peligro: string;
+  descripcion?: string;
+  created_at: Date;
+}
+
+// Tipos para formularios
+export interface FormularioTrabajador {
+  tipo_documento: TipoDocumento;
+  numero_documento: string;
+  apellido_paterno: string;
+  apellido_materno: string;
+  nombres: string;
+  fecha_nacimiento?: string;
+  sexo?: 'Masculino' | 'Femenino';
+  puesto_trabajo: string;
+  area_trabajo?: string;
+  fecha_ingreso?: string;
+}
+
+export interface FormularioAusentismo {
+  trabajador_id: string;
+  tipo_ausentismo: TipoAusentismo;
+  fecha_inicio: string;
+  fecha_fin?: string;
+  motivo?: string;
+}
+
+export interface FormularioCapacitacion {
+  nombre_curso: string;
+  tipo_capacitacion?: string;
+  fecha_programada: string;
+}
+
+export interface FormularioAccidente {
+  trabajador_id: string;
+  tipo_evento: TipoEvento;
+  fecha_ocurrencia: string;
+  descripcion_evento: string;
+}
 
 
