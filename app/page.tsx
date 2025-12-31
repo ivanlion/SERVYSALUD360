@@ -160,6 +160,16 @@ const GestionTrabajadores = dynamic(() => import('../components/GestionTrabajado
 });
 
 /**
+ * PlanAnualSST - Gestión del Plan Anual de SST
+ * Lazy loading: Componente con gestión de plan anual, actividades,
+ * indicadores y gráficos de cumplimiento
+ */
+const PlanAnualSST = dynamic(() => import('../components/PlanAnualSST'), {
+  loading: () => <LoadingSpinner message="Cargando Plan Anual de SST..." />,
+  ssr: false
+});
+
+/**
  * Datos de ejemplo para demostración (no se utilizan en producción)
  * Los datos reales se obtienen de Supabase
  */
@@ -710,6 +720,11 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         {currentView === 'GESTION_TRABAJADORES' && (
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
             <GestionTrabajadores />
+          </div>
+        )}
+        {currentView === 'PLAN_ANUAL_SST' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <PlanAnualSST />
           </div>
         )}
       </main>
