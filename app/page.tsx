@@ -190,6 +190,16 @@ const GestionCapacitaciones = dynamic(() => import('../components/GestionCapacit
 });
 
 /**
+ * IndicadoresSST - Dashboard de métricas e indicadores SST
+ * Lazy loading: Componente con indicadores principales, gráficos Recharts,
+ * tablas de resumen y exportación a Excel/PDF
+ */
+const IndicadoresSST = dynamic(() => import('../components/IndicadoresSST'), {
+  loading: () => <LoadingSpinner message="Cargando Indicadores SST..." />,
+  ssr: false
+});
+
+/**
  * Datos de ejemplo para demostración (no se utilizan en producción)
  * Los datos reales se obtienen de Supabase
  */
@@ -755,6 +765,11 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         {currentView === 'CAPACITACIONES_SST' && (
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
             <GestionCapacitaciones />
+          </div>
+        )}
+        {currentView === 'INDICADORES_SST' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <IndicadoresSST />
           </div>
         )}
       </main>
