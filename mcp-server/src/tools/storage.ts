@@ -94,7 +94,7 @@ export async function handleStorageTool(
           bucket,
           path,
           error: error.message,
-          code: error.code 
+          // Nota: StorageError no tiene propiedad 'code'
         });
         return createSupabaseError(error, 'Error al listar archivos');
       }
@@ -153,7 +153,7 @@ export async function handleStorageTool(
           bucket,
           path,
           error: error.message,
-          code: error.code 
+          // Nota: StorageError no tiene propiedad 'code'
         });
         
         return createSupabaseError(error, errorMessage);
