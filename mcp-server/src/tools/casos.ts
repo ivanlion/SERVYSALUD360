@@ -7,6 +7,9 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { casosListarSchema, casosObtenerSchema, casosBuscarSchema } from './schemas/casos';
+import { generateCacheKey, getFromCache, setInCache } from '../utils/cache';
+import { createMCPError, createValidationError, createSupabaseError } from '../utils/errors';
+import { mcpLogger } from '../utils/logger';
 
 /**
  * Define las herramientas relacionadas con casos
@@ -79,23 +82,27 @@ export async function handleCasosTool(
       try {
         validatedArgs = casosListarSchema.parse(args);
       } catch (validationError: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error de validación: ${validationError.errors?.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ') || validationError.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.warn('Error de validación en casos_listar', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
       
-      const { limit = 100, status, empresa_id } = validatedArgs;
+      const { limit = 100, offset = 0, status, empresa_id } = validatedArgs;
       
+      // ✅ MEJORA: Verificar caché antes de hacer consulta
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, cacheKey });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando casos_listar', { limit, offset, status, empresa_id });
+      
+      // ✅ MEJORA: Paginación completa con range
       let query = supabase
         .from('casos')
-        .select('id, fecha, status, empresa_id, trabajador_id, tipo_evento, created_at, updated_at')
-        .limit(limit);
+        .select('id, fecha, status, empresa_id, trabajador_id, tipo_evento, created_at, updated_at', { count: 'exact' })
+        .range(offset, offset + limit - 1);
       
       if (status) {
         query = query.eq('status', status);
@@ -106,28 +113,40 @@ export async function handleCasosTool(
         query = query.eq('empresa_id', empresa_id);
       }
       
-      const { data, error } = await query.order('fecha', { ascending: false });
+      const { data, error, count } = await query.order('fecha', { ascending: false });
       
       if (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error al listar casos: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(`Error al listar casos: ${error.message}`), { 
+          toolName, 
+          error: error.message,
+          code: error.code 
+        });
+        return createSupabaseError(error, 'Error al listar casos');
       }
       
-      return {
+      // ✅ MEJORA: Incluir información de paginación en la respuesta
+      const result = {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(data, null, 2),
+            text: JSON.stringify({
+              data,
+              pagination: {
+                total: count || 0,
+                limit,
+                offset,
+                hasMore: count ? offset + limit < count : false,
+              },
+            }, null, 2),
           },
         ],
       };
+      
+      // ✅ MEJORA: Guardar en caché
+      setInCache(cacheKey, result);
+      mcpLogger.debug('Resultado guardado en caché', { toolName, cacheKey, dataCount: data?.length || 0 });
+      
+      return result;
     }
 
     case 'casos_obtener': {
@@ -136,18 +155,21 @@ export async function handleCasosTool(
       try {
         validatedArgs = casosObtenerSchema.parse(args);
       } catch (validationError: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error de validación: ${validationError.errors?.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ') || validationError.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.warn('Error de validación en casos_obtener', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
       
       const { id } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, id });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando casos_obtener', { id });
       
       const { data, error } = await supabase
         .from('casos')
@@ -156,18 +178,16 @@ export async function handleCasosTool(
         .single();
       
       if (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error al obtener caso: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(`Error al obtener caso: ${error.message}`), { 
+          toolName, 
+          id,
+          error: error.message,
+          code: error.code 
+        });
+        return createSupabaseError(error, 'Error al obtener caso');
       }
       
-      return {
+      const result = {
         content: [
           {
             type: 'text',
@@ -175,6 +195,12 @@ export async function handleCasosTool(
           },
         ],
       };
+      
+      // ✅ MEJORA: Guardar en caché
+      setInCache(cacheKey, result);
+      mcpLogger.debug('Resultado guardado en caché', { toolName, id });
+      
+      return result;
     }
 
     case 'casos_buscar': {
@@ -183,18 +209,21 @@ export async function handleCasosTool(
       try {
         validatedArgs = casosBuscarSchema.parse(args);
       } catch (validationError: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error de validación: ${validationError.errors?.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ') || validationError.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.warn('Error de validación en casos_buscar', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
       
       const { query } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché (búsquedas pueden ser costosas)
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, query });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando casos_buscar', { query });
       
       const { data, error } = await supabase
         .from('casos')
@@ -203,18 +232,16 @@ export async function handleCasosTool(
         .limit(50);
       
       if (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error al buscar casos: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(`Error al buscar casos: ${error.message}`), { 
+          toolName, 
+          query,
+          error: error.message,
+          code: error.code 
+        });
+        return createSupabaseError(error, 'Error al buscar casos');
       }
       
-      return {
+      const result = {
         content: [
           {
             type: 'text',
@@ -222,18 +249,21 @@ export async function handleCasosTool(
           },
         ],
       };
+      
+      // ✅ MEJORA: Guardar en caché
+      setInCache(cacheKey, result);
+      mcpLogger.debug('Resultado guardado en caché', { toolName, query, dataCount: data?.length || 0 });
+      
+      return result;
     }
 
     default:
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Herramienta de casos desconocida: ${toolName}`,
-          },
-        ],
-        isError: true,
-      };
+      mcpLogger.warn('Herramienta de casos desconocida', { toolName });
+      return createMCPError(
+        `Herramienta de casos desconocida: ${toolName}`,
+        'UNKNOWN_TOOL',
+        { toolName, availableTools: ['casos_listar', 'casos_obtener', 'casos_buscar'] }
+      );
   }
 }
 

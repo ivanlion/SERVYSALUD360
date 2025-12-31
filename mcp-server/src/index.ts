@@ -18,6 +18,7 @@ import {
 
 import { getSupabaseClient } from './services/supabase';
 import { listTools, handleToolCall } from './tools/index';
+import { mcpLogger } from './utils/logger';
 
 /**
  * Inicializa y configura el servidor MCP
@@ -89,6 +90,7 @@ export async function handleRequest(request: any): Promise<any> {
 
     switch (method) {
       case 'tools/list': {
+        mcpLogger.debug('Listando herramientas disponibles');
         const tools = await listTools();
         return {
           jsonrpc: '2.0',
@@ -101,6 +103,8 @@ export async function handleRequest(request: any): Promise<any> {
 
       case 'tools/call': {
         const { name, arguments: args } = params || {};
+        mcpLogger.debug('Ejecutando herramienta', { toolName: name, args });
+        
         // ✅ OPTIMIZACIÓN: Usar singleton en lugar de crear nuevo cliente
         const supabase = getSupabaseClient();
         const result = await handleToolCall(name, args || {}, supabase);
@@ -108,16 +112,23 @@ export async function handleRequest(request: any): Promise<any> {
         // Si el resultado tiene isError: true, convertirlo en un error JSON-RPC
         if (result && result.isError === true) {
           const errorMessage = result.content?.[0]?.text || 'Error desconocido en la herramienta';
+          mcpLogger.error(new Error(`Error en herramienta ${name}: ${errorMessage}`), { 
+            toolName: name, 
+            errorCode: result.error_code,
+            errorDetails: result.error_details 
+          });
           return {
             jsonrpc: '2.0',
             id,
             error: {
               code: -32603,
               message: errorMessage,
+              data: result.error_details,
             },
           };
         }
         
+        mcpLogger.debug('Herramienta ejecutada exitosamente', { toolName: name });
         return {
           jsonrpc: '2.0',
           id,
@@ -126,6 +137,7 @@ export async function handleRequest(request: any): Promise<any> {
       }
 
       default:
+        mcpLogger.warn('Método no encontrado', { method });
         return {
           jsonrpc: '2.0',
           id,
@@ -136,6 +148,10 @@ export async function handleRequest(request: any): Promise<any> {
         };
     }
   } catch (error) {
+    mcpLogger.error(error instanceof Error ? error : new Error('Error interno en handleRequest'), {
+      request: request.method,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return {
       jsonrpc: '2.0',
       id: request.id || null,

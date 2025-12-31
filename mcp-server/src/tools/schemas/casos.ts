@@ -8,9 +8,11 @@ import { z } from 'zod';
 
 /**
  * Schema para casos_listar
+ * ✅ MEJORA: Agregada paginación completa
  */
 export const casosListarSchema = z.object({
   limit: z.number().int().min(1).max(1000).optional().default(100),
+  offset: z.number().int().min(0).optional().default(0),
   status: z.enum(['ACTIVO', 'CERRADO']).optional(),
   empresa_id: z.string().uuid('empresa_id debe ser un UUID válido').optional(),
 });
