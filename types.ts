@@ -538,7 +538,7 @@ export interface MiembroComiteSST {
 }
 
 // Accidentes e Incidentes
-export type TipoEventoAccidente = 
+export type TipoEvento = 
   | 'Accidente de trabajo'
   | 'Accidente leve'
   | 'Accidente incapacitante'
@@ -550,7 +550,7 @@ export interface AccidenteIncidente {
   id: string;
   empresa_id: string;
   trabajador_id: string;
-  tipo_evento: TipoEventoAccidente;
+  tipo_evento: TipoEvento;
   fecha_ocurrencia: Date;
   descripcion_evento: string;
   estado: 'Reportado' | 'En investigación' | 'Cerrado';
@@ -572,7 +572,7 @@ export interface InspeccionSST {
 export interface IndicadorSST {
   id: string;
   empresa_id: string;
-  periodo: string;
+  periodo: string; // YYYY-MM
   total_trabajadores?: number;
   numero_accidentes_trabajo: number;
   dias_perdidos_total: number;
@@ -619,7 +619,7 @@ export interface FormularioCapacitacion {
 
 export interface FormularioAccidente {
   trabajador_id: string;
-  tipo_evento: TipoEventoAccidente;
+  tipo_evento: TipoEvento;
   fecha_ocurrencia: string;
   descripcion_evento: string;
 }
