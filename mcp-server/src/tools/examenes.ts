@@ -11,6 +11,10 @@ import { EMO_ANALYSIS_PROMPT } from '../../../lib/prompts/emo-analysis';
 import { validatePDF, needsPreprocessing } from '../services/pdf-validator';
 import { processImage } from '../services/image-processor';
 import { analyzeScannedPDFWithOCR } from '../services/ocr-fallback';
+import { examenesListarSchema, examenesAnalizarSchema } from './schemas/examenes';
+import { generateCacheKey, getFromCache, setInCache } from '../utils/cache';
+import { createMCPError, createValidationError, createSupabaseError } from '../utils/errors';
+import { mcpLogger } from '../utils/logger';
 
 /**
  * Define las herramientas relacionadas con exámenes médicos
@@ -67,12 +71,32 @@ export async function handleExamenesTool(
 ): Promise<any> {
   switch (toolName) {
     case 'examenes_listar': {
-      const { limit = 100, trabajador_id, empresa_id } = args;
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = examenesListarSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en examenes_listar', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
+      }
       
+      const { limit = 100, offset = 0, trabajador_id, empresa_id } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, cacheKey });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando examenes_listar', { limit, offset, trabajador_id, empresa_id });
+      
+      // ✅ MEJORA: Paginación completa con range
       let query = supabase
         .from('examenes_medicos')
-        .select('id, trabajador_id, empresa_id, fecha_examen, tipo_examen, resultado, observaciones, archivo_url, created_at, updated_at')
-        .limit(limit);
+        .select('id, trabajador_id, empresa_id, fecha_examen, tipo_examen, resultado, observaciones, archivo_url, created_at, updated_at', { count: 'exact' })
+        .range(offset, offset + limit - 1);
       
       if (trabajador_id) {
         query = query.eq('trabajador_id', trabajador_id);
@@ -83,50 +107,61 @@ export async function handleExamenesTool(
         query = query.eq('empresa_id', empresa_id);
       }
       
-      const { data, error } = await query.order('fecha_examen', { ascending: false });
+      const { data, error, count } = await query.order('fecha_examen', { ascending: false });
       
       if (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error al listar exámenes: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(`Error al listar exámenes: ${error.message}`), { 
+          toolName, 
+          error: error.message,
+          code: error.code 
+        });
+        return createSupabaseError(error, 'Error al listar exámenes');
       }
       
-      return {
+      // ✅ MEJORA: Incluir información de paginación
+      const result = {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(data, null, 2),
+            text: JSON.stringify({
+              data,
+              pagination: {
+                total: count || 0,
+                limit,
+                offset,
+                hasMore: count ? offset + limit < count : false,
+              },
+            }, null, 2),
           },
         ],
       };
+      
+      // ✅ MEJORA: Guardar en caché
+      setInCache(cacheKey, result);
+      mcpLogger.debug('Resultado guardado en caché', { toolName, cacheKey, dataCount: data?.length || 0 });
+      
+      return result;
     }
 
     case 'examenes_analizar': {
-      const { pdf_base64, use_thinking = false } = args;
-      
-      if (!pdf_base64) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Error: Se requiere el parámetro "pdf_base64"',
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = examenesAnalizarSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en examenes_analizar', { error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+      
+      const { pdf_base64, use_thinking = false } = validatedArgs;
+      
+      // Nota: No usamos caché para análisis porque cada PDF es único
 
       try {
         // ============================================
         // PASO 1: VALIDACIÓN DEL PDF
         // ============================================
-        console.log(`[Examenes] Validando PDF...`);
+        mcpLogger.debug('Validando PDF para análisis');
         const validation = await validatePDF(pdf_base64);
         
         if (!validation.isValid) {
@@ -153,7 +188,11 @@ export async function handleExamenesTool(
           };
         }
 
-        console.log(`[Examenes] PDF válido: ${validation.type} (${validation.sizeInMB.toFixed(2)}MB, ${validation.pageCount || '?'} páginas)`);
+        mcpLogger.debug('PDF válido', { 
+          type: validation.type, 
+          sizeMB: validation.sizeInMB.toFixed(2),
+          pageCount: validation.pageCount 
+        });
 
         // ============================================
         // PASO 2: PRE-PROCESAMIENTO (si es necesario)
@@ -161,7 +200,7 @@ export async function handleExamenesTool(
         let processedPdfBase64 = pdf_base64;
         
         if (needsPreprocessing(validation)) {
-          console.log(`[Examenes] PDF escaneado detectado. Aplicando pre-procesamiento...`);
+          mcpLogger.debug('PDF escaneado detectado, aplicando pre-procesamiento');
           try {
             // Procesar imagen para mejorar calidad
             processedPdfBase64 = await processImage(pdf_base64, {
@@ -174,9 +213,9 @@ export async function handleExamenesTool(
                 quality: 85
               } : undefined
             });
-            console.log(`[Examenes] Pre-procesamiento completado`);
+            mcpLogger.debug('Pre-procesamiento completado');
           } catch (preprocessError: any) {
-            console.warn(`[Examenes] Error en pre-procesamiento, continuando con PDF original: ${preprocessError.message}`);
+            mcpLogger.warn('Error en pre-procesamiento, continuando con PDF original', { error: preprocessError.message });
             // Continuar con el PDF original si el pre-procesamiento falla
           }
         }
@@ -191,7 +230,11 @@ export async function handleExamenesTool(
         // ============================================
         // PASO 3: ANÁLISIS CON GEMINI (con retry y fallback a OCR)
         // ============================================
-        console.log(`[Examenes] Iniciando análisis con Gemini (${validation.type} PDF, ${validation.sizeInMB.toFixed(2)}MB)`);
+        mcpLogger.debug('Iniciando análisis con Gemini', { 
+          pdfType: validation.type, 
+          sizeMB: validation.sizeInMB.toFixed(2),
+          useThinking: use_thinking 
+        });
         
         let analysisResult: string;
         let usedOCR = false;
@@ -204,21 +247,25 @@ export async function handleExamenesTool(
             useThinkingMode,
             3 // maxRetries
           );
-          console.log(`[Examenes] Análisis con Gemini completado exitosamente`);
+          mcpLogger.debug('Análisis con Gemini completado exitosamente');
         } catch (geminiError: any) {
+          mcpLogger.warn('Error en análisis con Gemini', { error: geminiError.message });
           // Si Gemini falla y el PDF es escaneado, intentar OCR como fallback
           if (validation.isScanned || validation.type === 'scanned') {
-            console.log(`[Examenes] Gemini falló. Intentando OCR como fallback...`);
+            mcpLogger.debug('Gemini falló, intentando OCR como fallback');
             try {
               analysisResult = await analyzeScannedPDFWithOCR(
                 processedPdfBase64,
                 analysisPrompt
               );
               usedOCR = true;
-              console.log(`[Examenes] Análisis con OCR completado exitosamente`);
+              mcpLogger.debug('Análisis con OCR completado exitosamente');
             } catch (ocrError: any) {
               // Si OCR también falla, lanzar error combinado
-              console.error(`[Examenes] Tanto Gemini como OCR fallaron`);
+              mcpLogger.error(new Error('Tanto Gemini como OCR fallaron'), { 
+                geminiError: geminiError.message,
+                ocrError: ocrError.message 
+              });
               const errorDetails = {
                 error_type: 'ANALYSIS_FAILED',
                 message: `Análisis falló: Gemini (${geminiError?.message || 'unknown'}) y OCR (${ocrError?.message || 'unknown'})`,
@@ -261,7 +308,7 @@ export async function handleExamenesTool(
               timestamp: new Date().toISOString()
             };
             
-            console.error(`[Examenes] Error en análisis de Gemini:`, errorDetails);
+            mcpLogger.error(new Error('Error en análisis de Gemini'), errorDetails);
             
             return {
               content: [
@@ -345,7 +392,9 @@ export async function handleExamenesTool(
             ],
           };
         } catch (parseError) {
-          console.error(`[Examenes] Error al parsear respuesta de Gemini:`, parseError);
+          mcpLogger.error(parseError instanceof Error ? parseError : new Error('Error al parsear respuesta'), { 
+            rawResponseLength: analysisResult?.length 
+          });
           return {
             content: [
               {
@@ -372,7 +421,7 @@ export async function handleExamenesTool(
           timestamp: new Date().toISOString()
         };
         
-        console.error(`[Examenes] Error inesperado:`, errorDetails);
+        mcpLogger.error(error instanceof Error ? error : new Error('Error inesperado'), errorDetails);
         
         return {
           content: [
@@ -390,15 +439,12 @@ export async function handleExamenesTool(
     }
 
     default:
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Herramienta de exámenes desconocida: ${toolName}`,
-          },
-        ],
-        isError: true,
-      };
+      mcpLogger.warn('Herramienta de exámenes desconocida', { toolName });
+      return createMCPError(
+        `Herramienta de exámenes desconocida: ${toolName}`,
+        'UNKNOWN_TOOL',
+        { toolName, availableTools: ['examenes_listar', 'examenes_analizar'] }
+      );
   }
 }
 

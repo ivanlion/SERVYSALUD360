@@ -6,6 +6,10 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { storageListarSchema, storageDescargarSchema } from './schemas/storage';
+import { generateCacheKey, getFromCache, setInCache } from '../utils/cache';
+import { createMCPError, createValidationError, createSupabaseError } from '../utils/errors';
+import { mcpLogger } from '../utils/logger';
 
 /**
  * Define las herramientas relacionadas con storage
@@ -59,37 +63,43 @@ export async function handleStorageTool(
 ): Promise<any> {
   switch (toolName) {
     case 'storage_listar': {
-      const { bucket, path = '' } = args;
-      
-      if (!bucket) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Error: Se requiere el parámetro "bucket"',
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = storageListarSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en storage_listar', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+      
+      const { bucket, path = '' } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, bucket, path });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando storage_listar', { bucket, path });
       
       const { data, error } = await supabase.storage
         .from(bucket)
         .list(path);
       
       if (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error al listar archivos: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(`Error al listar archivos: ${error.message}`), { 
+          toolName, 
+          bucket,
+          path,
+          error: error.message,
+          code: error.code 
+        });
+        return createSupabaseError(error, 'Error al listar archivos');
       }
       
-      return {
+      const result = {
         content: [
           {
             type: 'text',
@@ -97,22 +107,29 @@ export async function handleStorageTool(
           },
         ],
       };
+      
+      // ✅ MEJORA: Guardar en caché
+      setInCache(cacheKey, result);
+      mcpLogger.debug('Resultado guardado en caché', { toolName, bucket, path, fileCount: data?.length || 0 });
+      
+      return result;
     }
 
     case 'storage_descargar': {
-      const { bucket, path } = args;
-      
-      if (!bucket || !path) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Error: Se requieren los parámetros "bucket" y "path"',
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = storageDescargarSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en storage_descargar', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+      
+      const { bucket, path } = validatedArgs;
+      
+      // Nota: No usamos caché para descargas porque los archivos pueden cambiar
+      
+      mcpLogger.debug('Ejecutando storage_descargar', { bucket, path });
       
       const { data, error } = await supabase.storage
         .from(bucket)
@@ -131,21 +148,23 @@ export async function handleStorageTool(
           errorMessage = `Acceso denegado al archivo "${path}". Verifica tus permisos.`;
         }
         
-        return {
-          content: [
-            {
-              type: 'text',
-              text: errorMessage,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(errorMessage), { 
+          toolName, 
+          bucket,
+          path,
+          error: error.message,
+          code: error.code 
+        });
+        
+        return createSupabaseError(error, errorMessage);
       }
       
       // Convertir el blob a base64 para preservar datos binarios (PDFs, imágenes, etc.)
       const arrayBuffer = await data.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const base64 = buffer.toString('base64');
+      
+      mcpLogger.debug('Archivo descargado exitosamente', { bucket, path, sizeBytes: buffer.length });
       
       return {
         content: [
@@ -158,15 +177,12 @@ export async function handleStorageTool(
     }
 
     default:
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Herramienta de storage desconocida: ${toolName}`,
-          },
-        ],
-        isError: true,
-      };
+      mcpLogger.warn('Herramienta de storage desconocida', { toolName });
+      return createMCPError(
+        `Herramienta de storage desconocida: ${toolName}`,
+        'UNKNOWN_TOOL',
+        { toolName, availableTools: ['storage_listar', 'storage_descargar'] }
+      );
   }
 }
 

@@ -6,6 +6,10 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { trabajadoresListarSchema, trabajadoresObtenerSchema } from './schemas/trabajadores';
+import { generateCacheKey, getFromCache, setInCache } from '../utils/cache';
+import { createMCPError, createValidationError, createSupabaseError } from '../utils/errors';
+import { mcpLogger } from '../utils/logger';
 
 /**
  * Define las herramientas relacionadas con trabajadores
@@ -54,56 +58,95 @@ export async function handleTrabajadoresTool(
 ): Promise<any> {
   switch (toolName) {
     case 'trabajadores_listar': {
-      const { limit = 100, empresa_id } = args;
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = trabajadoresListarSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en trabajadores_listar', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
+      }
       
+      const { limit = 100, offset = 0, empresa_id } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, cacheKey });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando trabajadores_listar', { limit, offset, empresa_id });
+      
+      // ✅ MEJORA: Paginación completa con range
       let query = supabase
         .from('registros_trabajadores')
-        .select('*')
-        .limit(limit);
+        .select('*', { count: 'exact' })
+        .range(offset, offset + limit - 1);
       
       // Filtrar por empresa si se proporciona (multi-tenancy)
       if (empresa_id) {
         query = query.eq('empresa_id', empresa_id);
       }
       
-      const { data, error } = await query.order('fecha_registro', { ascending: false });
+      const { data, error, count } = await query.order('fecha_registro', { ascending: false });
       
       if (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error al listar trabajadores: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(`Error al listar trabajadores: ${error.message}`), { 
+          toolName, 
+          error: error.message,
+          code: error.code 
+        });
+        return createSupabaseError(error, 'Error al listar trabajadores');
       }
       
-      return {
+      // ✅ MEJORA: Incluir información de paginación
+      const result = {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(data, null, 2),
+            text: JSON.stringify({
+              data,
+              pagination: {
+                total: count || 0,
+                limit,
+                offset,
+                hasMore: count ? offset + limit < count : false,
+              },
+            }, null, 2),
           },
         ],
       };
+      
+      // ✅ MEJORA: Guardar en caché
+      setInCache(cacheKey, result);
+      mcpLogger.debug('Resultado guardado en caché', { toolName, cacheKey, dataCount: data?.length || 0 });
+      
+      return result;
     }
 
     case 'trabajadores_obtener': {
-      const { dni } = args;
-      
-      if (!dni) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Error: Se requiere el parámetro "dni"',
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = trabajadoresObtenerSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en trabajadores_obtener', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+      
+      const { dni } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, dni });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando trabajadores_obtener', { dni });
       
       const { data, error } = await supabase
         .from('registros_trabajadores')
@@ -112,18 +155,16 @@ export async function handleTrabajadoresTool(
         .single();
       
       if (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error al obtener trabajador: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(`Error al obtener trabajador: ${error.message}`), { 
+          toolName, 
+          dni,
+          error: error.message,
+          code: error.code 
+        });
+        return createSupabaseError(error, 'Error al obtener trabajador');
       }
       
-      return {
+      const result = {
         content: [
           {
             type: 'text',
@@ -131,18 +172,21 @@ export async function handleTrabajadoresTool(
           },
         ],
       };
+      
+      // ✅ MEJORA: Guardar en caché
+      setInCache(cacheKey, result);
+      mcpLogger.debug('Resultado guardado en caché', { toolName, dni });
+      
+      return result;
     }
 
     default:
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Herramienta de trabajadores desconocida: ${toolName}`,
-          },
-        ],
-        isError: true,
-      };
+      mcpLogger.warn('Herramienta de trabajadores desconocida', { toolName });
+      return createMCPError(
+        `Herramienta de trabajadores desconocida: ${toolName}`,
+        'UNKNOWN_TOOL',
+        { toolName, availableTools: ['trabajadores_listar', 'trabajadores_obtener'] }
+      );
   }
 }
 

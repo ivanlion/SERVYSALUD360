@@ -8,6 +8,10 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { empresasListarSchema, empresasObtenerSchema, empresasBuscarSchema, empresasCrearSchema } from './schemas/empresas';
+import { generateCacheKey, getFromCache, setInCache } from '../utils/cache';
+import { createMCPError, createValidationError, createSupabaseError } from '../utils/errors';
+import { mcpLogger } from '../utils/logger';
 
 /**
  * Define las herramientas relacionadas con empresas
@@ -104,7 +108,26 @@ export async function handleEmpresasTool(
 ): Promise<any> {
   switch (toolName) {
     case 'empresas_listar': {
-      const { user_id } = args;
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = empresasListarSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en empresas_listar', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
+      }
+      
+      const { user_id } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, cacheKey });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando empresas_listar', { user_id });
       
       try {
         // Si no se proporciona user_id, intentar obtenerlo del contexto
@@ -122,15 +145,13 @@ export async function handleEmpresasTool(
         const { data, error } = await query;
         
         if (error) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `Error al listar empresas: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
+          mcpLogger.error(new Error(`Error al listar empresas: ${error.message}`), { 
+            toolName, 
+            user_id,
+            error: error.message,
+            code: error.code 
+          });
+          return createSupabaseError(error, 'Error al listar empresas');
         }
         
         // Transformar datos para devolver solo las empresas
@@ -138,7 +159,7 @@ export async function handleEmpresasTool(
           .map((ue: any) => ue.empresas)
           .filter(Boolean);
         
-        return {
+        const result = {
           content: [
             {
               type: 'text',
@@ -146,33 +167,43 @@ export async function handleEmpresasTool(
             },
           ],
         };
+        
+        // ✅ MEJORA: Guardar en caché
+        setInCache(cacheKey, result);
+        mcpLogger.debug('Resultado guardado en caché', { toolName, cacheKey, empresaCount: empresas.length });
+        
+        return result;
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error inesperado: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(error instanceof Error ? error : new Error('Error inesperado en empresas_listar'), { user_id });
+        return createMCPError(
+          `Error inesperado: ${error.message}`,
+          'UNEXPECTED_ERROR',
+          { error: error.message }
+        );
       }
     }
 
     case 'empresas_obtener': {
-      const { empresa_id } = args;
-      
-      if (!empresa_id) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Error: Se requiere el parámetro "empresa_id"',
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = empresasObtenerSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en empresas_obtener', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+      
+      const { empresa_id } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, empresa_id });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando empresas_obtener', { empresa_id });
       
       const { data, error } = await supabase
         .from('empresas')
@@ -181,18 +212,16 @@ export async function handleEmpresasTool(
         .single();
       
       if (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error al obtener empresa: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(new Error(`Error al obtener empresa: ${error.message}`), { 
+          toolName, 
+          empresa_id,
+          error: error.message,
+          code: error.code 
+        });
+        return createSupabaseError(error, 'Error al obtener empresa');
       }
       
-      return {
+      const result = {
         content: [
           {
             type: 'text',
@@ -200,22 +229,35 @@ export async function handleEmpresasTool(
           },
         ],
       };
+      
+      // ✅ MEJORA: Guardar en caché
+      setInCache(cacheKey, result);
+      mcpLogger.debug('Resultado guardado en caché', { toolName, empresa_id });
+      
+      return result;
     }
 
     case 'empresas_buscar': {
-      const { query, user_id } = args;
-      
-      if (!query) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Error: Se requiere el parámetro "query"',
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = empresasBuscarSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en empresas_buscar', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+      
+      const { query, user_id } = validatedArgs;
+      
+      // ✅ MEJORA: Verificar caché (búsquedas pueden ser costosas)
+      const cacheKey = generateCacheKey(toolName, validatedArgs);
+      const cached = getFromCache(cacheKey);
+      if (cached) {
+        mcpLogger.debug('Resultado obtenido del caché', { toolName, query });
+        return cached;
+      }
+      
+      mcpLogger.debug('Ejecutando empresas_buscar', { query, user_id });
       
       try {
         // Primero obtener empresas del usuario si se proporciona user_id
@@ -244,18 +286,17 @@ export async function handleEmpresasTool(
         const { data, error } = await empresasQuery;
         
         if (error) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `Error al buscar empresas: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
+          mcpLogger.error(new Error(`Error al buscar empresas: ${error.message}`), { 
+            toolName, 
+            query,
+            user_id,
+            error: error.message,
+            code: error.code 
+          });
+          return createSupabaseError(error, 'Error al buscar empresas');
         }
         
-        return {
+        const result = {
           content: [
             {
               type: 'text',
@@ -263,33 +304,37 @@ export async function handleEmpresasTool(
             },
           ],
         };
+        
+        // ✅ MEJORA: Guardar en caché
+        setInCache(cacheKey, result);
+        mcpLogger.debug('Resultado guardado en caché', { toolName, query, dataCount: data?.length || 0 });
+        
+        return result;
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error inesperado: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(error instanceof Error ? error : new Error('Error inesperado en empresas_buscar'), { query, user_id });
+        return createMCPError(
+          `Error inesperado: ${error.message}`,
+          'UNEXPECTED_ERROR',
+          { error: error.message }
+        );
       }
     }
 
     case 'empresas_crear': {
-      const { nombre, ruc, direccion, telefono, email, user_id } = args;
-      
-      if (!nombre) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'Error: Se requiere el parámetro "nombre"',
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = empresasCrearSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en empresas_crear', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+      
+      const { nombre, ruc, direccion, telefono, email, user_id } = validatedArgs;
+      
+      // Nota: No usamos caché para crear porque es una operación de escritura
+      
+      mcpLogger.debug('Ejecutando empresas_crear', { nombre, ruc, user_id });
       
       try {
         // Crear empresa
@@ -307,15 +352,13 @@ export async function handleEmpresasTool(
           .single();
         
         if (empresaError || !empresa) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: `Error al crear empresa: ${empresaError?.message || 'Error desconocido'}`,
-              },
-            ],
-            isError: true,
-          };
+          mcpLogger.error(new Error(`Error al crear empresa: ${empresaError?.message || 'Error desconocido'}`), { 
+            toolName, 
+            nombre,
+            error: empresaError?.message,
+            code: empresaError?.code 
+          });
+          return createSupabaseError(empresaError || new Error('Error desconocido'), 'Error al crear empresa');
         }
         
         // Si se proporciona user_id, asociar empresa al usuario
@@ -331,17 +374,18 @@ export async function handleEmpresasTool(
             // Si falla la asociación, eliminar la empresa creada
             await supabase.from('empresas').delete().eq('id', empresa.id);
             
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: `Error al asociar empresa al usuario: ${userEmpresaError.message}`,
-                },
-              ],
-              isError: true,
-            };
+            mcpLogger.error(new Error(`Error al asociar empresa al usuario: ${userEmpresaError.message}`), { 
+              toolName, 
+              empresa_id: empresa.id,
+              user_id,
+              error: userEmpresaError.message,
+              code: userEmpresaError.code 
+            });
+            return createSupabaseError(userEmpresaError, 'Error al asociar empresa al usuario');
           }
         }
+        
+        mcpLogger.debug('Empresa creada exitosamente', { empresa_id: empresa.id, nombre });
         
         return {
           content: [
@@ -352,28 +396,22 @@ export async function handleEmpresasTool(
           ],
         };
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error inesperado: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(error instanceof Error ? error : new Error('Error inesperado en empresas_crear'), { nombre, user_id });
+        return createMCPError(
+          `Error inesperado: ${error.message}`,
+          'UNEXPECTED_ERROR',
+          { error: error.message }
+        );
       }
     }
 
     default:
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Herramienta de empresas desconocida: ${toolName}`,
-          },
-        ],
-        isError: true,
-      };
+      mcpLogger.warn('Herramienta de empresas desconocida', { toolName });
+      return createMCPError(
+        `Herramienta de empresas desconocida: ${toolName}`,
+        'UNKNOWN_TOOL',
+        { toolName, availableTools: ['empresas_listar', 'empresas_obtener', 'empresas_buscar', 'empresas_crear'] }
+      );
   }
 }
 

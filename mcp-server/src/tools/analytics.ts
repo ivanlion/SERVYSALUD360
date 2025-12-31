@@ -10,6 +10,15 @@ import { predictVisualHealthDeterioration, analyzeWorkersVisualHealth } from '..
 import { analyzeCompanyTrends } from '../services/trend-analyzer';
 import { detectEmergingRisks } from '../services/risk-alerts';
 import { generateCompanyRecommendations, generateWorkerRecommendations } from '../services/preventive-recommendations';
+import { 
+  analyticsPredecirSaludVisualSchema, 
+  analyticsTendenciasEmpresaSchema, 
+  analyticsRiesgosEmergentesSchema,
+  analyticsRecomendacionesEmpresaSchema,
+  analyticsRecomendacionesTrabajadorSchema 
+} from './schemas/analytics';
+import { createMCPError, createValidationError, createSupabaseError } from '../utils/errors';
+import { mcpLogger } from '../utils/logger';
 
 /**
  * Define las herramientas de análisis
@@ -110,21 +119,20 @@ export async function handleAnalyticsTool(
 ): Promise<any> {
   switch (toolName) {
     case 'analytics_predecir_salud_visual': {
-      const { trabajador_id, dni } = args;
-
-      if (!trabajador_id && !dni) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Se requiere trabajador_id o dni',
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = analyticsPredecirSaludVisualSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en analytics_predecir_salud_visual', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+
+      const { trabajador_id, dni } = validatedArgs;
+      
+      // Nota: No usamos caché para análisis porque los resultados pueden cambiar
+
+      mcpLogger.debug('Ejecutando analytics_predecir_salud_visual', { trabajador_id, dni });
 
       try {
         // Obtener trabajador
@@ -161,22 +169,22 @@ export async function handleAnalyticsTool(
           .order('fecha_emo', { ascending: true });
 
         if (examenesError || !examenes || examenes.length < 2) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  error: 'Se requieren al menos 2 exámenes para hacer predicción',
-                  trabajador: {
-                    id: trabajador.id,
-                    nombre: trabajador.nombre,
-                    dni: trabajador.dni
-                  }
-                }, null, 2),
+          mcpLogger.warn('No hay suficientes exámenes para predicción', { 
+            trabajador_id: trabajador.id, 
+            examenesCount: examenes?.length || 0 
+          });
+          return createMCPError(
+            'Se requieren al menos 2 exámenes para hacer predicción',
+            'INSUFFICIENT_DATA',
+            {
+              trabajador: {
+                id: trabajador.id,
+                nombre: trabajador.nombre,
+                dni: trabajador.dni
               },
-            ],
-            isError: true,
-          };
+              examenes_count: examenes?.length || 0
+            }
+          );
         }
 
         const prediccion = await predictVisualHealthDeterioration(
@@ -185,6 +193,8 @@ export async function handleAnalyticsTool(
           examenes
         );
 
+        mcpLogger.debug('Predicción de salud visual completada', { trabajador_id: trabajador.id });
+        
         return {
           content: [
             {
@@ -194,40 +204,42 @@ export async function handleAnalyticsTool(
           ],
         };
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Error al predecir salud visual',
-                message: error?.message || String(error),
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(error instanceof Error ? error : new Error('Error al predecir salud visual'), { 
+          trabajador_id, 
+          dni 
+        });
+        
+        // Si el error ya es un MCPError, retornarlo directamente
+        if (error.isError) {
+          return error;
+        }
+        
+        return createMCPError(
+          `Error al predecir salud visual: ${error?.message || String(error)}`,
+          'PREDICTION_ERROR',
+          { error: error?.message || String(error) }
+        );
       }
     }
 
     case 'analytics_tendencias_empresa': {
-      const { empresa, meses_atras = 12 } = args;
-
-      if (!empresa) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Se requiere el nombre de la empresa',
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = analyticsTendenciasEmpresaSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en analytics_tendencias_empresa', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+
+      const { empresa, meses_atras = 12 } = validatedArgs;
+      
+      mcpLogger.debug('Ejecutando analytics_tendencias_empresa', { empresa, meses_atras });
 
       try {
         const tendencias = await analyzeCompanyTrends(supabase, empresa, meses_atras);
+        
+        mcpLogger.debug('Análisis de tendencias completado', { empresa, meses_atras });
 
         return {
           content: [
@@ -238,26 +250,36 @@ export async function handleAnalyticsTool(
           ],
         };
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Error al analizar tendencias',
-                message: error?.message || String(error),
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(error instanceof Error ? error : new Error('Error al analizar tendencias'), { empresa, meses_atras });
+        return createMCPError(
+          `Error al analizar tendencias: ${error?.message || String(error)}`,
+          'TRENDS_ANALYSIS_ERROR',
+          { error: error?.message || String(error) }
+        );
       }
     }
 
     case 'analytics_riesgos_emergentes': {
-      const { meses_atras = 6 } = args;
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = analyticsRiesgosEmergentesSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en analytics_riesgos_emergentes', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
+      }
+
+      const { meses_atras = 6 } = validatedArgs;
+      
+      mcpLogger.debug('Ejecutando analytics_riesgos_emergentes', { meses_atras });
 
       try {
         const alertas = await detectEmergingRisks(supabase, meses_atras);
+        
+        mcpLogger.debug('Detección de riesgos completada', { 
+          totalAlertas: alertas.length,
+          meses_atras 
+        });
 
         return {
           content: [
@@ -273,37 +295,28 @@ export async function handleAnalyticsTool(
           ],
         };
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Error al detectar riesgos emergentes',
-                message: error?.message || String(error),
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(error instanceof Error ? error : new Error('Error al detectar riesgos emergentes'), { meses_atras });
+        return createMCPError(
+          `Error al detectar riesgos emergentes: ${error?.message || String(error)}`,
+          'RISK_DETECTION_ERROR',
+          { error: error?.message || String(error) }
+        );
       }
     }
 
     case 'analytics_recomendaciones_empresa': {
-      const { empresa, meses_atras = 12 } = args;
-
-      if (!empresa) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Se requiere el nombre de la empresa',
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = analyticsRecomendacionesEmpresaSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en analytics_recomendaciones_empresa', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+
+      const { empresa, meses_atras = 12 } = validatedArgs;
+      
+      mcpLogger.debug('Ejecutando analytics_recomendaciones_empresa', { empresa, meses_atras });
 
       try {
         // Obtener tendencias y alertas
@@ -319,6 +332,11 @@ export async function handleAnalyticsTool(
           alertasEmpresa,
           tendencias.indicadores
         );
+        
+        mcpLogger.debug('Recomendaciones generadas exitosamente', { 
+          empresa, 
+          totalRecomendaciones: recomendaciones.length 
+        });
 
         return {
           content: [
@@ -335,37 +353,28 @@ export async function handleAnalyticsTool(
           ],
         };
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Error al generar recomendaciones',
-                message: error?.message || String(error),
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(error instanceof Error ? error : new Error('Error al generar recomendaciones'), { empresa, meses_atras });
+        return createMCPError(
+          `Error al generar recomendaciones: ${error?.message || String(error)}`,
+          'RECOMMENDATIONS_ERROR',
+          { error: error?.message || String(error) }
+        );
       }
     }
 
     case 'analytics_recomendaciones_trabajador': {
-      const { trabajador_id, dni } = args;
-
-      if (!trabajador_id && !dni) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Se requiere trabajador_id o dni',
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = analyticsRecomendacionesTrabajadorSchema.parse(args);
+      } catch (validationError: any) {
+        mcpLogger.warn('Error de validación en analytics_recomendaciones_trabajador', { args, error: validationError });
+        return createValidationError(validationError.errors || [validationError]);
       }
+
+      const { trabajador_id, dni } = validatedArgs;
+      
+      mcpLogger.debug('Ejecutando analytics_recomendaciones_trabajador', { trabajador_id, dni });
 
       try {
         // Obtener trabajador y su historial
@@ -378,7 +387,8 @@ export async function handleAnalyticsTool(
             .single();
           
           if (error || !data) {
-            throw new Error('Trabajador no encontrado');
+            mcpLogger.error(new Error('Trabajador no encontrado'), { trabajador_id });
+            throw createSupabaseError(error || new Error('Trabajador no encontrado'), 'Trabajador no encontrado');
           }
           trabajador = data;
         } else {
@@ -389,7 +399,8 @@ export async function handleAnalyticsTool(
             .single();
           
           if (error || !data) {
-            throw new Error('Trabajador no encontrado');
+            mcpLogger.error(new Error('Trabajador no encontrado'), { dni });
+            throw createSupabaseError(error || new Error('Trabajador no encontrado'), 'Trabajador no encontrado');
           }
           trabajador = data;
         }
@@ -421,6 +432,11 @@ export async function handleAnalyticsTool(
           examenes || [],
           prediccion
         );
+        
+        mcpLogger.debug('Recomendaciones generadas exitosamente', { 
+          trabajador_id: trabajador.id, 
+          totalRecomendaciones: recomendaciones.length 
+        });
 
         return {
           content: [
@@ -441,31 +457,40 @@ export async function handleAnalyticsTool(
           ],
         };
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Error al generar recomendaciones',
-                message: error?.message || String(error),
-              }, null, 2),
-            },
-          ],
-          isError: true,
-        };
+        mcpLogger.error(error instanceof Error ? error : new Error('Error al generar recomendaciones'), { 
+          trabajador_id, 
+          dni 
+        });
+        
+        // Si el error ya es un MCPError, retornarlo directamente
+        if (error.isError) {
+          return error;
+        }
+        
+        return createMCPError(
+          `Error al generar recomendaciones: ${error?.message || String(error)}`,
+          'RECOMMENDATIONS_ERROR',
+          { error: error?.message || String(error) }
+        );
       }
     }
 
     default:
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Herramienta de análisis desconocida: ${toolName}`,
-          },
-        ],
-        isError: true,
-      };
+      mcpLogger.warn('Herramienta de análisis desconocida', { toolName });
+      return createMCPError(
+        `Herramienta de análisis desconocida: ${toolName}`,
+        'UNKNOWN_TOOL',
+        { 
+          toolName, 
+          availableTools: [
+            'analytics_predecir_salud_visual',
+            'analytics_tendencias_empresa',
+            'analytics_riesgos_emergentes',
+            'analytics_recomendaciones_empresa',
+            'analytics_recomendaciones_trabajador'
+          ] 
+        }
+      );
   }
 }
 
