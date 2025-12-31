@@ -6,6 +6,7 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { casosListarSchema, casosObtenerSchema, casosBuscarSchema } from './schemas/casos';
 
 /**
  * Define las herramientas relacionadas con casos
@@ -73,7 +74,23 @@ export async function handleCasosTool(
 ): Promise<any> {
   switch (toolName) {
     case 'casos_listar': {
-      const { limit = 100, status, empresa_id } = args;
+      // ✅ MEJORA: Validación con Zod para prevenir errores en runtime
+      let validatedArgs;
+      try {
+        validatedArgs = casosListarSchema.parse(args);
+      } catch (validationError: any) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error de validación: ${validationError.errors?.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ') || validationError.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      
+      const { limit = 100, status, empresa_id } = validatedArgs;
       
       let query = supabase
         .from('casos')
@@ -114,19 +131,23 @@ export async function handleCasosTool(
     }
 
     case 'casos_obtener': {
-      const { id } = args;
-      
-      if (!id) {
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = casosObtenerSchema.parse(args);
+      } catch (validationError: any) {
         return {
           content: [
             {
               type: 'text',
-              text: 'Error: Se requiere el parámetro "id"',
+              text: `Error de validación: ${validationError.errors?.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ') || validationError.message}`,
             },
           ],
           isError: true,
         };
       }
+      
+      const { id } = validatedArgs;
       
       const { data, error } = await supabase
         .from('casos')
@@ -157,19 +178,23 @@ export async function handleCasosTool(
     }
 
     case 'casos_buscar': {
-      const { query } = args;
-      
-      if (!query) {
+      // ✅ MEJORA: Validación con Zod
+      let validatedArgs;
+      try {
+        validatedArgs = casosBuscarSchema.parse(args);
+      } catch (validationError: any) {
         return {
           content: [
             {
               type: 'text',
-              text: 'Error: Se requiere el parámetro "query"',
+              text: `Error de validación: ${validationError.errors?.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ') || validationError.message}`,
             },
           ],
           isError: true,
         };
       }
+      
+      const { query } = validatedArgs;
       
       const { data, error } = await supabase
         .from('casos')

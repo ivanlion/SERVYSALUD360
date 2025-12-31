@@ -16,15 +16,15 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { initSupabaseClient } from './services/supabase';
+import { getSupabaseClient } from './services/supabase';
 import { listTools, handleToolCall } from './tools/index';
 
 /**
  * Inicializa y configura el servidor MCP
  */
 async function createMCPServer() {
-  // Inicializar cliente de Supabase
-  const supabase = initSupabaseClient();
+  // ✅ OPTIMIZACIÓN: Usar singleton para reutilizar cliente
+  const supabase = getSupabaseClient();
 
   // Crear servidor MCP
   const server = new Server(
@@ -101,7 +101,8 @@ export async function handleRequest(request: any): Promise<any> {
 
       case 'tools/call': {
         const { name, arguments: args } = params || {};
-        const supabase = initSupabaseClient();
+        // ✅ OPTIMIZACIÓN: Usar singleton en lugar de crear nuevo cliente
+        const supabase = getSupabaseClient();
         const result = await handleToolCall(name, args || {}, supabase);
         
         // Si el resultado tiene isError: true, convertirlo en un error JSON-RPC

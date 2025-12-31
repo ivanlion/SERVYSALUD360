@@ -20,6 +20,11 @@ import { logger } from '../../../utils/logger';
  * @returns Response con la respuesta del servidor MCP en formato JSON-RPC 2.0
  */
 export async function POST(request: NextRequest) {
+  // ✅ MEJORA: Timeout para evitar requests que se quedan colgados
+  const controller = new AbortController();
+  const TIMEOUT_MS = 30000; // 30 segundos
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
   try {
     // Parsear el body del request como JSON
     const body = await request.json();
@@ -52,7 +57,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Procesar el request a través del servidor MCP
+    // ✅ MEJORA: Verificar si el request fue abortado por timeout
+    if (controller.signal.aborted) {
+      clearTimeout(timeoutId);
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          id: body?.id || null,
+          error: {
+            code: -32603,
+            message: 'Request timeout',
+          },
+        },
+        { status: 408 }
+      );
+    }
+
     const response = await handleRequest(body);
+    clearTimeout(timeoutId);
 
     // Retornar la respuesta en formato JSON-RPC 2.0
     return NextResponse.json(response, {
@@ -62,6 +84,23 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    clearTimeout(timeoutId);
+    
+    // ✅ MEJORA: Manejar timeout específicamente
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json(
+        {
+          jsonrpc: '2.0',
+          id: null,
+          error: {
+            code: -32603,
+            message: 'Request timeout',
+          },
+        },
+        { status: 408 }
+      );
+    }
+
     // Manejar errores de parsing o procesamiento
     logger.error(error instanceof Error ? error : new Error('Error procesando request MCP'), {
       context: 'MCPRoute',
