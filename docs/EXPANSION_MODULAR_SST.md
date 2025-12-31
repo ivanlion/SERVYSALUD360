@@ -2,7 +2,19 @@
 
 ## 🎯 Objetivo
 
-Este script SQL expande la base de datos de SERVYSALUD360 con módulos completos de **Seguridad y Salud en el Trabajo (SST)** según la normativa peruana (Ley 29783 y su reglamento), **sin modificar las tablas existentes**.
+Este conjunto de scripts SQL expande la base de datos de SERVYSALUD360 con módulos completos de **Seguridad y Salud en el Trabajo (SST)** según la normativa peruana (Ley 29783 y su reglamento), **sin modificar las tablas existentes**.
+
+## 📦 Archivos del Proyecto
+
+- **`SQL_EXPANSION_MODULAR_SST.sql`** (PARTE 1) - Módulos base SST
+- **`SQL_EXPANSION_MODULAR_SST_PARTE2.sql`** (PARTE 2) - Módulos normativos avanzados
+
+## ⚠️ Orden de Ejecución
+
+**IMPORTANTE:** Ejecutar primero la PARTE 1, luego la PARTE 2.
+
+1. Ejecutar `SQL_EXPANSION_MODULAR_SST.sql` (PARTE 1)
+2. Ejecutar `SQL_EXPANSION_MODULAR_SST_PARTE2.sql` (PARTE 2)
 
 ## ✅ Características Principales
 
@@ -193,6 +205,215 @@ Actas de reunión del Comité de SST.
 - `temas_tratados`, `observaciones_reunion`
 - `archivo_acta`, `anexos`
 
+---
+
+## 📦 PARTE 2 - MÓDULOS NORMATIVOS AVANZADOS
+
+### 16. **planes_anuales_sst**
+Plan Anual de Seguridad y Salud en el Trabajo (PASST) - Art. 33 DS 005-2012-TR.
+
+**Características:**
+- Un plan por año por empresa (constraint UNIQUE)
+- Objetivos generales y específicos
+- Metas SST con valores objetivos
+- Presupuesto detallado por categoría
+- Cronograma de actividades
+- Seguimiento de cumplimiento
+
+**Campos principales:**
+- `anio`, `codigo_plan`, `version`
+- `objetivo_general`, `objetivos_especificos` (array)
+- `metas_sst` (JSONB) - Metas con responsables
+- `presupuesto_total`, `presupuesto_detalle` (JSONB)
+- `cronograma_actividades` (JSONB)
+- `porcentaje_cumplimiento`
+- `estado`: En elaboración, Aprobado, En ejecución, Cerrado
+
+### 17. **actividades_plan_sst**
+Actividades específicas del Plan Anual de SST.
+
+**Características:**
+- Categorización por líneas base del SGSST
+- Programación mensual/trimestral
+- Seguimiento de avance y ejecución
+- Presupuesto por actividad
+
+**Campos principales:**
+- `plan_id`, `codigo_actividad`, `nombre_actividad`
+- `linea_base` - Líneas base del SGSST
+- `mes_programado`, `trimestre`, `frecuencia`
+- `fecha_inicio_programada`, `fecha_fin_programada`
+- `fecha_inicio_real`, `fecha_fin_real`
+- `porcentaje_avance`
+- `presupuesto`, `presupuesto_ejecutado`
+- `evidencias_url`, `fotos_url`
+
+### 18. **ausentismo_laboral**
+Sistema de registro de ausentismo laboral - RM 050-2013-TR.
+
+**Tipos de ausentismo:**
+- Descanso médico, Licencias, Permisos, Vacaciones
+- Accidente de trabajo, Enfermedad ocupacional
+- Maternidad, Paternidad, Lactancia materna
+- Subsidio por enfermedad, Inasistencia injustificada
+
+**Campos principales:**
+- `tipo_ausentismo`, `subtipo`
+- `fecha_inicio`, `fecha_fin`, `fecha_retorno_real`
+- `dias_ausencia`, `dias_habiles_ausencia`
+- `diagnostico_cie10`, `diagnostico_descripcion`
+- `tiene_certificado_medico`, `certificado_medico_url`
+- `relacionado_con_trabajo`, `es_accidente_trabajo`, `es_enfermedad_ocupacional`
+- `cubierto_por_sctr`, `genera_subsidio`
+- `costo_directo`, `costo_indirecto`, `costo_total` (calculado)
+
+### 19. **programa_capacitacion_sst**
+Programa Anual de Capacitación en SST - Art. 27 Ley 29783.
+
+**Campos principales:**
+- `anio`, `codigo_programa`, `version`
+- `objetivo_general`, `alcance`
+- `poblacion_objetivo` - Número de trabajadores
+- `presupuesto_total`, `presupuesto_ejecutado`
+- `documento_programa_url`, `documento_aprobacion_url`
+- `estado`: Borrador, Vigente, Cerrado, Cancelado
+
+### 20. **capacitaciones_sst**
+Capacitaciones programadas y ejecutadas (versión refinada).
+
+**Tipos:** Inducción general, Inducción específica del puesto, Capacitación especializada, Simulacro, Entrenamiento práctico, Charla de 5 minutos, Sensibilización
+
+**Campos principales:**
+- `programa_id`, `codigo_curso`, `nombre_curso`
+- `tipo_capacitacion`, `categoria`
+- `temas` (array), `duracion_horas`
+- `modalidad`: Presencial, Virtual, Semipresencial, E-learning
+- `fecha_ejecucion`, `lugar`, `plataforma_virtual`
+- `expositor`, `institucion_expositor`
+- `tiene_evaluacion`, `nota_minima_aprobacion`
+- `numero_asistentes_real`, `numero_aprobados`, `porcentaje_aprobacion`
+- `lista_asistencia_url`, `certificados_generados_url`
+- `nivel_satisfaccion` (escala 1-5)
+
+### 21. **asistencia_capacitaciones**
+Asistencia detallada de trabajadores a capacitaciones.
+
+**Campos principales:**
+- `asistio`, `hora_ingreso`, `hora_salida`, `minutos_asistencia`
+- `fue_evaluado`, `nota_obtenida`, `aprobo`
+- `certificado_emitido`, `numero_certificado`, `certificado_url`
+- `completo_encuesta`, `calificacion_capacitacion`, `calificacion_expositor`
+
+### 22. **miembros_comite_sst**
+Miembros del Comité de SST con sus cargos y representación.
+
+**Campos principales:**
+- `comite_id`, `trabajador_id`
+- `representacion`: Empleador, Trabajadores
+- `cargo_comite`: Presidente, Secretario, Miembro titular, Miembro suplente
+- `fecha_inicio`, `fecha_fin`
+- `horas_capacitacion_sst`, `capacitacion_especializada`
+- `certificados_capacitacion` (array)
+
+### 23. **reuniones_comite_sst**
+Reuniones del Comité de SST con seguimiento de acuerdos.
+
+**Tipos:** Ordinaria, Extraordinaria
+
+**Campos principales:**
+- `comite_id`, `numero_reunion`, `tipo_reunion`
+- `fecha_realizacion`, `hora_inicio`, `hora_fin`, `lugar`
+- `agenda` (array), `temas_tratados`
+- `acuerdos` (array), `tareas_asignadas` (JSONB)
+- `asistentes` (array), `quorum_alcanzado`
+- `acta_reunion_url`, `evidencias_url`
+- `porcentaje_cumplimiento_acuerdos`
+
+### 24. **accidentes_incidentes**
+Registro de accidentes e incidentes de trabajo (versión refinada) - DS 005-2012-TR.
+
+**Tipos:** Accidente de trabajo, Accidente leve, Accidente incapacitante, Accidente mortal, Incidente peligroso, Incidente
+
+**Campos principales:**
+- `tipo_evento`, `subtipo`
+- `fecha_ocurrencia`, `hora_ocurrencia`, `lugar_ocurrencia`
+- `descripcion_evento`, `descripcion_lesion`
+- `parte_cuerpo_afectada`, `naturaleza_lesion`
+- `dias_descanso_medico`, `es_incapacitante`, `tipo_incapacidad`
+- `agente_causante`, `condicion_insegura`, `acto_inseguro`
+- `testigos` (array)
+- `recibio_atencion_medica`, `diagnostico_inicial`, `codigo_cie10`
+- `investigacion_realizada`, `causas_inmediatas`, `causas_basicas`, `causa_raiz`
+- `medidas_correctivas_inmediatas`, `medidas_correctivas_planificadas` (JSONB)
+- `requiere_notificacion_mintra`, `notificado_mintra`, `codigo_notificacion_mintra`
+- `informe_investigacion_url`, `fotos_url`, `videos_url`
+
+### 25. **inspecciones_sst**
+Inspecciones de seguridad y salud en el trabajo (versión refinada).
+
+**Tipos:** Planeada, No planeada, Rutina, Especializada, Pre-uso, Gubernamental
+
+**Campos principales:**
+- `codigo_inspeccion`, `tipo_inspeccion`
+- `area_inspeccionada`, `equipos_inspeccionados` (array)
+- `fecha_programada`, `fecha_realizacion`
+- `inspector_principal`, `inspectores` (array)
+- `hallazgos` (JSONB) - Con criticidad
+- `total_hallazgos`, `criticos`, `mayores`, `menores`
+- `acciones_correctivas` (JSONB)
+- `check_list_url`, `fotos_url`, `informe_inspeccion_url`
+
+### 26. **indicadores_sst**
+Indicadores de Seguridad y Salud en el Trabajo por periodo.
+
+**Características:**
+- Indicadores mensuales y anuales
+- Cálculo automático de índices (IF, IG, IA)
+- Seguimiento de cumplimiento PASST
+
+**Campos principales:**
+- `anio`, `mes`, `periodo` (YYYY-MM)
+- `total_trabajadores`, `horas_hombre_trabajadas`
+- `numero_accidentes_trabajo`, `numero_accidentes_incapacitantes`, `numero_accidentes_mortales`
+- `dias_perdidos_total`, `dias_perdidos_accidentes`
+- `indice_frecuencia`, `indice_gravedad`, `indice_accidentabilidad`
+- `casos_enfermedad_ocupacional`
+- `total_ausencias`, `tasa_ausentismo`
+- `trabajadores_capacitados`, `horas_capacitacion_total`
+- `examenes_programados`, `examenes_realizados`, `cobertura_examenes`
+- `inspecciones_programadas`, `inspecciones_realizadas`
+- `actividades_passt_programadas`, `actividades_passt_ejecutadas`, `cumplimiento_passt`
+
+---
+
+## 🔧 Vistas y Funciones (PARTE 2)
+
+### Vistas
+
+1. **vista_trabajadores_unificada**
+   - Unifica datos de `registros_trabajadores` y `trabajadores`
+   - Prioriza datos de tabla nueva
+   - Indica origen de datos
+
+2. **vista_indicadores_consolidados**
+   - Consolidación de indicadores SST
+   - Cálculos automáticos de IF e IG
+   - Incluye datos de empresa
+
+### Funciones Auxiliares
+
+1. **calcular_edad(fecha_nac DATE)**
+   - Calcula edad a partir de fecha de nacimiento
+
+2. **trabajadores_examenes_vencidos(empresa_uuid UUID)**
+   - Retorna trabajadores con exámenes vencidos o sin exámenes
+
+3. **calcular_indice_frecuencia(num_accidentes, horas_hombre)**
+   - Calcula Índice de Frecuencia (IF)
+
+4. **calcular_indice_gravedad(dias_perdidos, horas_hombre)**
+   - Calcula Índice de Gravedad (IG)
+
 ## 🔄 Tablas Actualizadas (Solo Columnas Nuevas)
 
 ### **empresas**
@@ -240,15 +461,22 @@ Todas las tablas tienen triggers para actualizar `updated_at` automáticamente.
 -- Hacer backup antes de ejecutar
 ```
 
-### 2. **Ejecutar en Supabase SQL Editor**
+### 2. **Ejecutar PARTE 1 en Supabase SQL Editor**
 1. Abre Supabase Dashboard
 2. Ve a **SQL Editor**
 3. Copia y pega el contenido de `SQL_EXPANSION_MODULAR_SST.sql`
 4. Ejecuta el script
+5. Verifica que no haya errores
 
-### 3. **Verificar Creación**
+### 3. **Ejecutar PARTE 2 en Supabase SQL Editor**
+1. En el mismo **SQL Editor**
+2. Copia y pega el contenido de `SQL_EXPANSION_MODULAR_SST_PARTE2.sql`
+3. Ejecuta el script
+4. Verifica que no haya errores
+
+### 4. **Verificar Creación**
 ```sql
--- Verificar que las tablas se crearon
+-- Verificar que las tablas se crearon (PARTE 1)
 SELECT table_name 
 FROM information_schema.tables 
 WHERE table_schema = 'public' 
@@ -265,6 +493,35 @@ WHERE table_schema = 'public'
     'simulacros',
     'comite_sst',
     'actas_comite_sst'
+  )
+ORDER BY table_name;
+
+-- Verificar que las tablas se crearon (PARTE 2)
+SELECT table_name 
+FROM information_schema.tables 
+WHERE table_schema = 'public' 
+  AND table_name IN (
+    'planes_anuales_sst',
+    'actividades_plan_sst',
+    'ausentismo_laboral',
+    'programa_capacitacion_sst',
+    'capacitaciones_sst',
+    'asistencia_capacitaciones',
+    'miembros_comite_sst',
+    'reuniones_comite_sst',
+    'accidentes_incidentes',
+    'inspecciones_sst',
+    'indicadores_sst'
+  )
+ORDER BY table_name;
+
+-- Verificar vistas
+SELECT table_name 
+FROM information_schema.views 
+WHERE table_schema = 'public' 
+  AND table_name IN (
+    'vista_trabajadores_unificada',
+    'vista_indicadores_consolidados'
   )
 ORDER BY table_name;
 ```
@@ -328,11 +585,24 @@ Después de ejecutar el script:
 
 ## 📊 Estadísticas
 
+### PARTE 1
 - **Tablas nuevas:** 15
 - **Tablas actualizadas:** 2 (solo columnas nuevas)
 - **Catálogos pre-cargados:** 3 (peligros, riesgos, EPP)
 - **Total de registros iniciales:** 30+ (peligros y EPP comunes)
-- **Líneas de SQL:** ~1,300
+- **Líneas de SQL:** ~1,304
+
+### PARTE 2
+- **Tablas nuevas:** 11
+- **Vistas creadas:** 2
+- **Funciones auxiliares:** 4
+- **Líneas de SQL:** ~1,332
+
+### TOTAL
+- **Tablas nuevas:** 26
+- **Vistas:** 2
+- **Funciones:** 4
+- **Total líneas SQL:** ~2,636
 
 ---
 
