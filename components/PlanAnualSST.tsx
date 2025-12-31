@@ -45,6 +45,9 @@ const actividadSchema = z.object({
   nombre_actividad: z.string().min(1, 'El nombre de la actividad es requerido'),
   mes_programado: z.number().min(1).max(12).optional(),
   responsable: z.string().min(1, 'El responsable es requerido'),
+  fecha_inicio_real: z.string().optional(),
+  fecha_fin_real: z.string().optional(),
+  porcentaje_avance: z.number().min(0).max(100).optional(),
 });
 
 type PlanFormData = z.infer<typeof planSchema>;
@@ -78,6 +81,9 @@ export default function PlanAnualSSTComponent() {
     nombre_actividad: '',
     mes_programado: undefined,
     responsable: '',
+    fecha_inicio_real: '',
+    fecha_fin_real: '',
+    porcentaje_avance: undefined,
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -258,6 +264,9 @@ export default function PlanAnualSSTComponent() {
       nombre_actividad: '',
       mes_programado: undefined,
       responsable: '',
+      fecha_inicio_real: '',
+      fecha_fin_real: '',
+      porcentaje_avance: undefined,
     });
     setFormErrors({});
     setIsActividadModalOpen(true);
@@ -270,6 +279,13 @@ export default function PlanAnualSSTComponent() {
       nombre_actividad: actividad.nombre_actividad,
       mes_programado: actividad.mes_programado || undefined,
       responsable: actividad.responsable || '',
+      fecha_inicio_real: (actividad as any).fecha_inicio_real 
+        ? new Date((actividad as any).fecha_inicio_real).toISOString().split('T')[0]
+        : '',
+      fecha_fin_real: (actividad as any).fecha_fin_real
+        ? new Date((actividad as any).fecha_fin_real).toISOString().split('T')[0]
+        : '',
+      porcentaje_avance: (actividad as any).porcentaje_avance || undefined,
     });
     setFormErrors({});
     setIsActividadModalOpen(true);
@@ -621,6 +637,9 @@ export default function PlanAnualSSTComponent() {
                         Responsable
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Avance
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
                         Estado
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
@@ -641,6 +660,29 @@ export default function PlanAnualSSTComponent() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                           {actividad.responsable || '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {((actividad as any).porcentaje_avance !== undefined && (actividad as any).porcentaje_avance !== null) ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 min-w-[60px]">
+                                <div
+                                  className={`h-2 rounded-full transition-all ${
+                                    (actividad as any).porcentaje_avance === 100
+                                      ? 'bg-green-500'
+                                      : (actividad as any).porcentaje_avance >= 50
+                                      ? 'bg-yellow-500'
+                                      : 'bg-blue-500'
+                                  }`}
+                                  style={{ width: `${(actividad as any).porcentaje_avance}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                {(actividad as any).porcentaje_avance}%
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -865,6 +907,60 @@ export default function PlanAnualSSTComponent() {
                 />
                 {formErrors.responsable && (
                   <p className="text-red-500 text-xs mt-1">{formErrors.responsable}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Fecha Inicio Real
+                  </label>
+                  <input
+                    type="date"
+                    value={actividadFormData.fecha_inicio_real}
+                    onChange={(e) => setActividadFormData({ ...actividadFormData, fecha_inicio_real: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Fecha Fin Real
+                  </label>
+                  <input
+                    type="date"
+                    value={actividadFormData.fecha_fin_real}
+                    onChange={(e) => setActividadFormData({ ...actividadFormData, fecha_fin_real: e.target.value })}
+                    min={actividadFormData.fecha_inicio_real}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Porcentaje de Avance (%)
+                </label>
+                <input
+                  type="number"
+                  value={actividadFormData.porcentaje_avance || ''}
+                  onChange={(e) => setActividadFormData({ 
+                    ...actividadFormData, 
+                    porcentaje_avance: e.target.value ? parseFloat(e.target.value) : undefined 
+                  })}
+                  min="0"
+                  max="100"
+                  step="1"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+                {actividadFormData.porcentaje_avance !== undefined && (
+                  <div className="mt-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{ width: `${actividadFormData.porcentaje_avance}%` }}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

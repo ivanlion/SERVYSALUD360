@@ -54,6 +54,10 @@ const capacitacionSchema = z.object({
   nombre_curso: z.string().min(1, 'El nombre del curso es requerido'),
   tipo_capacitacion: z.string().optional(),
   fecha_programada: z.string().min(1, 'La fecha programada es requerida'),
+  duracion_horas: z.number().min(0).optional(),
+  lugar: z.string().optional(),
+  expositor: z.string().optional(),
+  materiales: z.string().optional(),
 });
 
 type ProgramaFormData = z.infer<typeof programaSchema>;
@@ -98,6 +102,10 @@ export default function GestionCapacitacionesComponent() {
     nombre_curso: '',
     tipo_capacitacion: '',
     fecha_programada: '',
+    duracion_horas: undefined,
+    lugar: '',
+    expositor: '',
+    materiales: '',
   });
   
   // Asistencia
@@ -640,6 +648,10 @@ export default function GestionCapacitacionesComponent() {
                 nombre_curso: '',
                 tipo_capacitacion: '',
                 fecha_programada: '',
+                duracion_horas: undefined,
+                lugar: '',
+                expositor: '',
+                materiales: '',
               });
               setFormErrors({});
               setIsCapacitacionModalOpen(true);
@@ -936,9 +948,31 @@ export default function GestionCapacitacionesComponent() {
                           <button
                             onClick={() => {
                               setEditingCapacitacion(capacitacion);
-                              setIsDetalleModalOpen(true);
+                              setCapacitacionFormData({
+                                nombre_curso: capacitacion.nombre_curso,
+                                tipo_capacitacion: capacitacion.tipo_capacitacion || '',
+                                fecha_programada: capacitacion.fecha_programada 
+                                  ? capacitacion.fecha_programada.toISOString().split('T')[0]
+                                  : '',
+                                duracion_horas: (capacitacion as any).duracion_horas || undefined,
+                                lugar: (capacitacion as any).lugar || '',
+                                expositor: (capacitacion as any).expositor || '',
+                                materiales: (capacitacion as any).materiales || '',
+                              });
+                              setFormErrors({});
+                              setIsCapacitacionModalOpen(true);
                             }}
                             className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingCapacitacion(capacitacion);
+                              setIsDetalleModalOpen(true);
+                            }}
+                            className="p-2 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             title="Ver detalle"
                           >
                             <Eye size={18} />

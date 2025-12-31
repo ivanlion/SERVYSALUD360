@@ -15,6 +15,7 @@ import { useCompany } from '../contexts/CompanyContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { AusentismoLaboral, TipoAusentismo, Trabajador, getNombreCompleto } from '../types';
 import { z } from 'zod';
+import { utils, writeFile } from 'xlsx';
 import { 
   Plus, 
   Edit2, 
@@ -31,7 +32,8 @@ import {
   CheckCircle2,
   Clock,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download
 } from 'lucide-react';
 import { logger } from '../utils/logger';
 
@@ -85,6 +87,8 @@ export default function AusentismoLaboralComponent() {
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetalleModalOpen, setIsDetalleModalOpen] = useState(false);
+  const [ausentismoDetalle, setAusentismoDetalle] = useState<AusentismoConTrabajador | null>(null);
   const [editingAusentismo, setEditingAusentismo] = useState<AusentismoConTrabajador | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -513,6 +517,43 @@ export default function AusentismoLaboralComponent() {
     });
   };
 
+  // Exportar a Excel
+  const handleExportExcel = useCallback(() => {
+    try {
+      const data = [
+        ['REPORTE DE AUSENTISMO LABORAL'],
+        ['Período:', fechaInicioFilter || 'Todos', 'a', fechaFinFilter || 'Todos'],
+        [''],
+        ['Trabajador', 'DNI', 'Tipo', 'Fecha Inicio', 'Fecha Fin', 'Días', 'Estado', 'Motivo'],
+        ...ausentismosFiltrados.map(a => [
+          a.trabajador ? getNombreCompleto(a.trabajador) : 'N/A',
+          a.trabajador?.numero_documento || 'N/A',
+          a.tipo_ausentismo,
+          formatDate(a.fecha_inicio),
+          formatDate(a.fecha_fin),
+          a.dias_ausencia || 0,
+          a.estado,
+          a.motivo || '-',
+        ]),
+      ];
+
+      const ws = utils.aoa_to_sheet(data);
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, ws, 'Ausentismo');
+      writeFile(wb, `Ausentismo_Laboral_${new Date().toISOString().split('T')[0]}.xlsx`);
+      showSuccess('Reporte exportado a Excel');
+    } catch (error: any) {
+      logger.error('[AusentismoLaboral] Error al exportar Excel', error);
+      showError('Error al exportar a Excel');
+    }
+  }, [ausentismosFiltrados, fechaInicioFilter, fechaFinFilter, showSuccess, showError]);
+
+  // Abrir modal de detalle
+  const handleVerDetalle = (ausentismo: AusentismoConTrabajador) => {
+    setAusentismoDetalle(ausentismo);
+    setIsDetalleModalOpen(true);
+  };
+
   if (!empresaActiva) {
     return (
       <div className="p-6">
@@ -535,13 +576,23 @@ export default function AusentismoLaboralComponent() {
             Gestión y seguimiento del ausentismo de trabajadores
           </p>
         </div>
-        <button
-          onClick={handleNewAusentismo}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={20} />
-          <span>Registrar Ausentismo</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportExcel}
+            disabled={ausentismosFiltrados.length === 0}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download size={18} />
+            <span>Exportar Excel</span>
+          </button>
+          <button
+            onClick={handleNewAusentismo}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={20} />
+            <span>Registrar Ausentismo</span>
+          </button>
+        </div>
       </div>
 
       {/* Estadísticas */}
@@ -803,6 +854,7 @@ export default function AusentismoLaboralComponent() {
                             <Edit2 size={18} />
                           </button>
                           <button
+                            onClick={() => handleVerDetalle(ausentismo)}
                             className="p-2 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
                             title="Ver detalle"
                           >
@@ -1015,6 +1067,91 @@ export default function AusentismoLaboralComponent() {
                 {isSaving && <Loader2 className="animate-spin" size={16} />}
                 <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalle */}
+      {isDetalleModalOpen && ausentismoDetalle && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Detalle de Ausentismo
+              </h2>
+              <button
+                onClick={() => setIsDetalleModalOpen(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Trabajador
+                  </label>
+                  <p className="text-gray-900 dark:text-white">
+                    {ausentismoDetalle.trabajador ? getNombreCompleto(ausentismoDetalle.trabajador) : 'N/A'}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    DNI: {ausentismoDetalle.trabajador?.numero_documento || 'N/A'}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Tipo de Ausentismo
+                  </label>
+                  <p className="text-gray-900 dark:text-white">{ausentismoDetalle.tipo_ausentismo}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Fecha Inicio
+                  </label>
+                  <p className="text-gray-900 dark:text-white">{formatDate(ausentismoDetalle.fecha_inicio)}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Fecha Fin
+                  </label>
+                  <p className="text-gray-900 dark:text-white">{formatDate(ausentismoDetalle.fecha_fin)}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Días de Ausencia
+                  </label>
+                  <p className="text-gray-900 dark:text-white">{ausentismoDetalle.dias_ausencia || '-'}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Estado
+                  </label>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    ausentismoDetalle.estado === 'Activo'
+                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                      : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  }`}>
+                    {ausentismoDetalle.estado}
+                  </span>
+                </div>
+              </div>
+
+              {ausentismoDetalle.motivo && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Motivo
+                  </label>
+                  <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{ausentismoDetalle.motivo}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

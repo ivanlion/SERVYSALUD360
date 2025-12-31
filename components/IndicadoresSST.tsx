@@ -35,13 +35,15 @@ import {
   Download, 
   FileText, 
   TrendingUp, 
-  AlertTriangle, 
+  AlertTriangle,
+  AlertCircle,
   Calendar,
   Users,
   Activity,
   Loader2,
   RefreshCw,
-  BarChart3
+  BarChart3,
+  CheckCircle2
 } from 'lucide-react';
 import { logger } from '../utils/logger';
 
@@ -62,6 +64,8 @@ interface IndicadoresData {
   capacitacionesEjecutadas: number;
   capacitacionesProgramadas: number;
   trabajadoresCapacitados: number;
+  tasaEnfermedadesOcupacionales?: number;
+  indiceCumplimiento?: number;
 }
 
 interface TopArea {
@@ -91,6 +95,7 @@ export default function IndicadoresSSTComponent() {
   const [anioSeleccionado, setAnioSeleccionado] = useState(new Date().getFullYear());
   const [isGenerating, setIsGenerating] = useState(false);
   const [indicadoresCalculados, setIndicadoresCalculados] = useState<IndicadoresData | null>(null);
+  const [indicadoresAnterior, setIndicadoresAnterior] = useState<IndicadoresData | null>(null);
   
   // Datos para gráficos
   const [evolucionAccidentabilidad, setEvolucionAccidentabilidad] = useState<any[]>([]);
@@ -218,6 +223,19 @@ export default function IndicadoresSSTComponent() {
         ? (trabajadoresCapacitados / trabajadoresActivos) * 100
         : 0;
 
+      // Calcular tasa de enfermedades ocupacionales
+      const enfermedadesOcupacionales = (ausentismoData || []).filter(a => 
+        a.tipo_ausentismo === 'Enfermedad ocupacional'
+      ).length;
+      const tasaEnfermedadesOcupacionales = trabajadoresActivos > 0
+        ? (enfermedadesOcupacionales / trabajadoresActivos) * 1000
+        : 0;
+
+      // Calcular índice de cumplimiento (capacitaciones ejecutadas vs programadas)
+      const indiceCumplimiento = capacitacionesProgramadas > 0
+        ? (capacitacionesEjecutadas / capacitacionesProgramadas) * 100
+        : 0;
+
       const indicadores: IndicadoresData = {
         indiceFrecuencia: Number(indiceFrecuencia.toFixed(2)),
         indiceGravedad: Number(indiceGravedad.toFixed(2)),
@@ -232,6 +250,8 @@ export default function IndicadoresSSTComponent() {
         capacitacionesEjecutadas,
         capacitacionesProgramadas,
         trabajadoresCapacitados,
+        tasaEnfermedadesOcupacionales: Number(tasaEnfermedadesOcupacionales.toFixed(2)),
+        indiceCumplimiento: Number(indiceCumplimiento.toFixed(2)),
       };
 
       setIndicadoresCalculados(indicadores);
@@ -254,6 +274,8 @@ export default function IndicadoresSSTComponent() {
           indice_accidentabilidad: indicadores.indiceAccidentabilidad,
           tasa_ausentismo: indicadores.tasaAusentismo,
           cobertura_examenes: 0, // Se puede calcular después
+          tasa_enfermedades_ocupacionales: indicadores.tasaEnfermedadesOcupacionales,
+          indice_cumplimiento: indicadores.indiceCumplimiento,
         }, {
           onConflict: 'empresa_id,periodo'
         });
@@ -491,6 +513,8 @@ export default function IndicadoresSSTComponent() {
         ['Índice de Accidentabilidad (IA)', indicadoresCalculados.indiceAccidentabilidad],
         ['Tasa de Ausentismo (%)', indicadoresCalculados.tasaAusentismo],
         ['Cobertura de Capacitación (%)', indicadoresCalculados.coberturaCapacitacion],
+        ['Tasa Enfermedades Ocupacionales', indicadoresCalculados.tasaEnfermedadesOcupacionales || 0],
+        ['Índice de Cumplimiento (%)', indicadoresCalculados.indiceCumplimiento || 0],
         [''],
         ['Top 5 Áreas con Más Accidentes'],
         ['Área', 'Accidentes'],
@@ -608,7 +632,7 @@ export default function IndicadoresSSTComponent() {
 
       {/* Indicadores Principales */}
       {indicadoresCalculados && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-6 text-white shadow-lg">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp size={24} />
@@ -652,6 +676,72 @@ export default function IndicadoresSSTComponent() {
             </div>
             <p className="text-3xl font-bold">{indicadoresCalculados.coberturaCapacitacion}%</p>
             <p className="text-xs opacity-75 mt-1">Trabajadores capacitados</p>
+          </div>
+
+          {indicadoresCalculados.tasaEnfermedadesOcupacionales !== undefined && (
+            <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg p-6 text-white shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle size={24} />
+                <span className="text-sm font-medium opacity-90">Tasa Enfermedades Ocup.</span>
+              </div>
+              <p className="text-3xl font-bold">{indicadoresCalculados.tasaEnfermedadesOcupacionales}</p>
+              <p className="text-xs opacity-75 mt-1">Por cada 1000 trabajadores</p>
+            </div>
+          )}
+
+          {indicadoresCalculados.indiceCumplimiento !== undefined && (
+            <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg p-6 text-white shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 size={24} />
+                <span className="text-sm font-medium opacity-90">Índice Cumplimiento</span>
+              </div>
+              <p className="text-3xl font-bold">{indicadoresCalculados.indiceCumplimiento}%</p>
+              <p className="text-xs opacity-75 mt-1">Capacitaciones ejecutadas</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Comparativa con Período Anterior */}
+      {indicadoresCalculados && indicadoresAnterior && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            Comparativa con Período Anterior
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {[
+              { label: 'IF', actual: indicadoresCalculados.indiceFrecuencia, anterior: indicadoresAnterior.indiceFrecuencia },
+              { label: 'IG', actual: indicadoresCalculados.indiceGravedad, anterior: indicadoresAnterior.indiceGravedad },
+              { label: 'IA', actual: indicadoresCalculados.indiceAccidentabilidad, anterior: indicadoresAnterior.indiceAccidentabilidad },
+              { label: 'Ausentismo', actual: indicadoresCalculados.tasaAusentismo, anterior: indicadoresAnterior.tasaAusentismo },
+              { label: 'Capacitación', actual: indicadoresCalculados.coberturaCapacitacion, anterior: indicadoresAnterior.coberturaCapacitacion },
+            ].map((item) => {
+              const variacion = item.anterior > 0 
+                ? ((item.actual - item.anterior) / item.anterior) * 100 
+                : 0;
+              const esMejora = variacion < 0;
+              
+              return (
+                <div key={item.label} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                    {item.label}
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {item.actual.toFixed(2)}
+                    </span>
+                    <span className={`text-sm font-semibold ${
+                      esMejora ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {variacion > 0 ? '+' : ''}{variacion.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Anterior: {item.anterior.toFixed(2)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
