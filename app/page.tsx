@@ -180,6 +180,16 @@ const AusentismoLaboral = dynamic(() => import('../components/AusentismoLaboral'
 });
 
 /**
+ * GestionCapacitaciones - Gestión del programa de capacitaciones SST
+ * Lazy loading: Componente con programa anual, calendario mensual, registro de asistencia
+ * y estadísticas de capacitaciones
+ */
+const GestionCapacitaciones = dynamic(() => import('../components/GestionCapacitaciones'), {
+  loading: () => <LoadingSpinner message="Cargando Gestión de Capacitaciones..." />,
+  ssr: false
+});
+
+/**
  * Datos de ejemplo para demostración (no se utilizan en producción)
  * Los datos reales se obtienen de Supabase
  */
@@ -740,6 +750,11 @@ Si algún dato no está disponible, usa una cadena vacía. Responde SOLO con el 
         {currentView === 'AUSENTISMO_LABORAL' && (
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
             <AusentismoLaboral />
+          </div>
+        )}
+        {currentView === 'CAPACITACIONES_SST' && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+            <GestionCapacitaciones />
           </div>
         )}
       </main>
