@@ -10,7 +10,25 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-type View = 'DASHBOARD' | 'NEW_CASE' | 'EDIT_CASE' | 'ACCESS_MANAGEMENT' | 'WORK_MODIFIED_DASHBOARD' | 'VIGILANCIA_MEDICA' | 'LEY29733' | 'GESTION_EMPRESAS' | 'UPLOAD_EMO' | 'HISTORIAL_ANALISIS';
+type View = 
+  | 'DASHBOARD' 
+  | 'NEW_CASE' 
+  | 'EDIT_CASE' 
+  | 'ACCESS_MANAGEMENT' 
+  | 'WORK_MODIFIED_DASHBOARD' 
+  | 'VIGILANCIA_MEDICA' 
+  | 'LEY29733' 
+  | 'GESTION_EMPRESAS' 
+  | 'UPLOAD_EMO' 
+  | 'HISTORIAL_ANALISIS'
+  | 'PLAN_ANUAL_SST'
+  | 'AUSENTISMO_LABORAL'
+  | 'CAPACITACIONES_SST'
+  | 'COMITE_SST'
+  | 'ACCIDENTES_INCIDENTES'
+  | 'INSPECCIONES_SST'
+  | 'INDICADORES_SST'
+  | 'GESTION_TRABAJADORES';
 
 interface NavigationContextType {
   currentView: View;
